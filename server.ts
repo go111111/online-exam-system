@@ -31,14 +31,16 @@ async function initDB() {
       });
       isMySQL = true;
       console.log("Connected to MySQL");
-      
+
       // Init MySQL Tables
       await db.execute(`
         CREATE TABLE IF NOT EXISTS users (
           id INT AUTO_INCREMENT PRIMARY KEY,
-          username VARCHAR(255) UNIQUE,
+          email VARCHAR(255) UNIQUE,
           password VARCHAR(255),
-          role VARCHAR(50) DEFAULT 'user'
+          role VARCHAR(50) DEFAULT 'user',
+          emailVerified TINYINT(1) DEFAULT 0,
+          verificationCode VARCHAR(6)
         )
       `);
       await db.execute(`
@@ -82,7 +84,7 @@ async function initDB() {
     db = new Database("exam.db");
     isMySQL = false;
     db.exec(`
-      CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT DEFAULT 'user');
+      CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, role TEXT DEFAULT 'user', emailVerified BOOLEAN DEFAULT 0, verificationCode TEXT);
       CREATE TABLE IF NOT EXISTS exams (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, description TEXT, startTime DATETIME, endTime DATETIME, duration INTEGER, status TEXT DEFAULT 'closed');
       CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY AUTOINCREMENT, examId INTEGER, type TEXT, content TEXT, options TEXT, answer TEXT);
       CREATE TABLE IF NOT EXISTS submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER, examId INTEGER, answers TEXT, score REAL, startTime DATETIME, endTime DATETIME, cheated BOOLEAN DEFAULT 0);
@@ -90,21 +92,21 @@ async function initDB() {
   }
 
   // Create default admin
-  const adminUsername = "admin";
+  const adminEmail = "admin@example.com";
   let admin;
   if (isMySQL) {
-    const [rows]: any = await db.execute("SELECT * FROM users WHERE username = ?", [adminUsername]);
+    const [rows]: any = await db.execute("SELECT * FROM users WHERE email = ?", [adminEmail]);
     admin = rows[0];
   } else {
-    admin = db.prepare("SELECT * FROM users WHERE username = ?").get(adminUsername);
+    admin = db.prepare("SELECT * FROM users WHERE email = ?").get(adminEmail);
   }
 
   if (!admin) {
     const hashedPassword = bcrypt.hashSync("admin123", 10);
     if (isMySQL) {
-      await db.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", [adminUsername, hashedPassword, "admin"]);
+      await db.execute("INSERT INTO users (email, password, role) VALUES (?, ?, ?)", [adminEmail, hashedPassword, "admin"]);
     } else {
-      db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run(adminUsername, hashedPassword, "admin");
+      db.prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)").run(adminEmail, hashedPassword, "admin");
     }
   }
 }
@@ -160,24 +162,57 @@ async function startServer() {
   // --- API Routes ---
 
   app.post("/api/register", async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
     try {
       const hashedPassword = bcrypt.hashSync(password, 10);
-      await query("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword]);
-      res.json({ message: "User registered successfully" });
+      // 生成6位验证码
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      await query("INSERT INTO users (email, password, verificationCode, emailVerified) VALUES (?, ?, ?, 0)",
+        [email, hashedPassword, verificationCode]);
+      res.json({
+        message: "User registered successfully",
+        // 开发环境下，返回验证码方便测试
+        verificationCode: process.env.NODE_ENV === 'development' ? verificationCode : undefined
+      });
     } catch (e) {
-      res.status(400).json({ error: "Username already exists" });
+      res.status(400).json({ error: "Email already exists" });
     }
   });
 
   app.post("/api/login", async (req, res) => {
-    const { username, password } = req.body;
-    const user = await getOne("SELECT * FROM users WHERE username = ?", [username]);
+    const { email, password } = req.body;
+    const user = await getOne("SELECT * FROM users WHERE email = ?", [email]);
     if (user && bcrypt.compareSync(password, user.password)) {
-      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
-      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+      // 检查邮箱是否已验证
+      if (!user.emailVerified) {
+        return res.status(403).json({ error: "Email not verified", requiresVerification: true });
+      }
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
+      res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
     } else {
       res.status(401).json({ error: "Invalid credentials" });
+    }
+  });
+
+  // 验证邮箱 API
+  app.post("/api/verify-email", async (req, res) => {
+    const { email, code } = req.body;
+    try {
+      const user = await getOne("SELECT * FROM users WHERE email = ?", [email]);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      if (user.emailVerified) {
+        return res.status(400).json({ error: "Email already verified" });
+      }
+      if (user.verificationCode !== code) {
+        return res.status(400).json({ error: "Invalid verification code" });
+      }
+      // 验证成功，更新数据库
+      await query("UPDATE users SET emailVerified = 1, verificationCode = NULL WHERE email = ?", [email]);
+      res.json({ message: "Email verified successfully" });
+    } catch (e) {
+      res.status(500).json({ error: "Verification failed" });
     }
   });
 
@@ -188,14 +223,14 @@ async function startServer() {
 
   app.post("/api/admin/exams", authenticateToken, isAdmin, async (req, res) => {
     const { title, description, startTime, endTime, duration, status } = req.body;
-    const result: any = await query("INSERT INTO exams (title, description, startTime, endTime, duration, status) VALUES (?, ?, ?, ?, ?, ?)", 
+    const result: any = await query("INSERT INTO exams (title, description, startTime, endTime, duration, status) VALUES (?, ?, ?, ?, ?, ?)",
       [title, description, startTime, endTime, duration, status || 'closed']);
     res.json({ id: isMySQL ? result.insertId : result.lastInsertRowid });
   });
 
   app.put("/api/admin/exams/:id", authenticateToken, isAdmin, async (req, res) => {
     const { title, description, startTime, endTime, duration, status } = req.body;
-    await query("UPDATE exams SET title = ?, description = ?, startTime = ?, endTime = ?, duration = ?, status = ? WHERE id = ?", 
+    await query("UPDATE exams SET title = ?, description = ?, startTime = ?, endTime = ?, duration = ?, status = ? WHERE id = ?",
       [title, description, startTime, endTime, duration, status, req.params.id]);
     res.json({ message: "Exam updated" });
   });
@@ -213,7 +248,7 @@ async function startServer() {
 
   app.post("/api/admin/exams/:id/questions", authenticateToken, isAdmin, async (req, res) => {
     const { type, content, options, answer } = req.body;
-    const result: any = await query("INSERT INTO questions (examId, type, content, options, answer) VALUES (?, ?, ?, ?, ?)", 
+    const result: any = await query("INSERT INTO questions (examId, type, content, options, answer) VALUES (?, ?, ?, ?, ?)",
       [req.params.id, type, content, JSON.stringify(options), answer]);
     res.json({ id: isMySQL ? result.insertId : result.lastInsertRowid });
   });
@@ -241,7 +276,7 @@ async function startServer() {
     questions.forEach((q: any) => {
       if ((q.type === 'choice' || q.type === 'fill') && answers[q.id] === q.answer) score += 1;
     });
-    const result: any = await query("INSERT INTO submissions (userId, examId, answers, score, startTime, endTime, cheated) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+    const result: any = await query("INSERT INTO submissions (userId, examId, answers, score, startTime, endTime, cheated) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [req.user.id, req.params.id, JSON.stringify(answers), score, startTime.slice(0, 19).replace('T', ' '), endTime, cheated ? 1 : 0]);
     res.json({ message: "Submitted", score, id: isMySQL ? result.insertId : result.lastInsertRowid });
   });
