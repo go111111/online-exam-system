@@ -17,8 +17,10 @@ import {
   ChevronRight,
   Timer,
   Eye,
-  BarChart
+  BarChart,
+  Bell
 } from 'lucide-vue-next';
+import NotificationCenter from './components/NotificationCenter.vue';
 
 // --- Auth Store ---
 const user = ref(JSON.parse(localStorage.getItem('user') || 'null'));
@@ -99,9 +101,10 @@ provide('api', api);
               <RouterLink v-if="user.role === 'admin'" to="/admin" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">
                 后台管理
               </RouterLink>
+              <NotificationCenter />
               <div class="flex items-center space-x-2 px-3 py-1 bg-gray-50 rounded-full border border-gray-100">
                 <User class="w-4 h-4 text-gray-400" />
-                <span class="text-sm font-medium text-gray-700">{{ user.email }}</span>
+                <span class="text-sm font-medium text-gray-700">{{ user.username }}</span>
               </div>
               <button 
                 @click="logout(); $router.push('/login')"

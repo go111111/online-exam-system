@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     email VARCHAR(150),
     full_name VARCHAR(100),
-    role ENUM('admin', 'teacher', 'student') NOT NULL DEFAULT 'student',
+    role ENUM('admin', 'student') NOT NULL DEFAULT 'student',
     is_active TINYINT(1) DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -121,8 +121,8 @@ CREATE TABLE IF NOT EXISTS cheat_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. 插入默认管理员
-INSERT INTO users (email, username, password, full_name, role) 
-VALUES ('admin@example.com', 'Admin', '$2a$10$nRvLK/VoVOxqMkQdOKHfWuGLz8WEQvLy0lWn0ELGlpEZdE5qqwq.O', 'Administrator', 'admin');
+INSERT INTO users (username, password, full_name, role) 
+VALUES ('Admin', '$2a$10$nRvLK/VoVOxqMkQdOKHfWuGLz8WEQvLy0lWn0ELGlpEZdE5qqwq.O', 'Administrator', 'admin');
 
 -- 5. 验证
 SHOW TABLES;

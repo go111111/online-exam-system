@@ -17,7 +17,12 @@ const handleSubmit = async () => {
     if (isLogin.value) {
       const data = await api.post('/api/login', { username: username.value, password: password.value });
       auth.login(data.user, data.token);
-      router.push('/');
+      // 管理员直接进入后台管理，普通用户进入首页
+      if (data.user.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/');
+      }
     } else {
       await api.post('/api/register', { username: username.value, password: password.value });
       alert('注册成功，请登录');

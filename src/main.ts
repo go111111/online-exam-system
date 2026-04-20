@@ -25,14 +25,12 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, from) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null');
   if (to.meta.requiresAuth && !user) {
-    next('/login');
+    return '/login';
   } else if (to.meta.adminOnly && user?.role !== 'admin') {
-    next('/');
-  } else {
-    next();
+    return '/';
   }
 });
 
@@ -64,8 +62,12 @@ const api = {
     };
     const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Request failed');
+      try {
+        const err = await res.json();
+        throw new Error(err.error || `HTTP ${res.status}`);
+      } catch {
+        throw new Error(`HTTP ${res.status}`);
+      }
     }
     return res.json();
   },

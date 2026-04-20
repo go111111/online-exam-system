@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
 import { FileText, Clock, Timer, ChevronRight } from 'lucide-vue-next';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const exams = ref<any[]>([]);
 const loading = ref(true);
 const api = inject<any>('api');
+const auth = inject<any>('auth');
 
 onMounted(async () => {
   try {
+    // 管理员重定向到后台管理
+    if (auth.user.value?.role === 'admin') {
+      router.push('/admin');
+      return;
+    }
+
     exams.value = await api.get('/api/exams');
   } catch (err) {
     console.error(err);

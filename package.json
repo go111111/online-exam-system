@@ -1,5 +1,6 @@
 {
   "name": "online-exam-system",
+  "description": "在线考试系统 - 专业的考试管理和答题平台",
   "private": true,
   "version": "0.0.0",
   "type": "module",
