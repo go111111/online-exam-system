@@ -116,13 +116,13 @@ async function initDB() {
     `);
     
     // Create default admin user
-    const admin = db.prepare("SELECT * FROM users WHERE email = ?").get("admin@qq.com");
+    const admin = db.prepare("SELECT * FROM users WHERE email = ?").get("1776866817@qq.com");
     if (!admin) {
-      const hashedPassword = bcrypt.hashSync("admin123", 10);
+      const hashedPassword = bcrypt.hashSync("jungle123", 10);
       db.prepare("INSERT INTO users (email, password, full_name, role) VALUES (?, ?, ?, ?)").run(
-        "admin@qq.com", hashedPassword, "Administrator", "admin"
+        "1776866817@qq.com", hashedPassword, "Administrator", "admin"
       );
-      console.log("✅ Default admin user created (admin@qq.com/admin123)");
+      console.log("✅ Default admin user created (1776866817@qq.com/jungle123)");
     }
   }
 }
@@ -192,11 +192,10 @@ async function startServer() {
         return res.status(400).json({ error: "Password must be 6-20 characters" });
       }
       const hashedPassword = bcrypt.hashSync(password, 10);
-      // Generate username from email (e.g., 123456@qq.com -> user_123456)
-      const username = `user_${email.toLowerCase().split('@')[0]}`;
+      
       await query(
-        "INSERT INTO users (email, password, role, username) VALUES (?, ?, ?, ?)",
-        [email.toLowerCase(), hashedPassword, 'student', username]
+        "INSERT INTO users (email, password, full_name, role) VALUES (?, ?, ?, ?)",
+        [email.toLowerCase(), hashedPassword, email.toLowerCase().split('@')[0], 'student']
       );
       res.json({ message: "User registered successfully" });
     } catch (e: any) {
@@ -486,6 +485,130 @@ async function startServer() {
     } catch (e: any) {
       console.error('Fetch results error:', e.message);
       res.status(500).json({ error: "Failed to fetch results" });
+    }
+  });
+
+  // Get current user profile
+  app.get("/api/user/profile", authenticateToken, async (req, res) => {
+    try {
+      const userId = (req as any).user.id;
+      const users = await query("SELECT id, email, full_name, role FROM users WHERE id = ?", [userId]);
+      const user = Array.isArray(users) ? users[0] : users;
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (e: any) {
+      console.error('Get profile error:', e.message);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  // Update question (admin)
+  app.put("/api/admin/exams/:id/questions/:qid", authenticateToken, isAdmin, async (req, res) => {
+    const { id, qid } = req.params;
+    const { type, content, options, answer, score = 5 } = req.body;
+    
+    try {
+      if (!type || !content || !answer) {
+        return res.status(400).json({ error: "Missing required question fields" });
+      }
+
+      let questionType = 'short_answer';
+      if (type === 'choice') {
+        questionType = 'single_choice';
+      } else if (type === 'fill') {
+        questionType = 'fill_blank';
+      }
+
+      await query(
+        `UPDATE questions SET question_type = ?, content = ?, correct_answer = ?, score = ? WHERE id = ? AND exam_id = ?`,
+        [questionType, content, answer, score, qid, id]
+      );
+      
+      res.json({ id: qid });
+    } catch (e: any) {
+      console.error('Update question error:', e.message);
+      res.status(500).json({ error: "Failed to update question" });
+    }
+  });
+
+  // Delete question (admin)
+  app.delete("/api/admin/exams/:id/questions/:qid", authenticateToken, isAdmin, async (req, res) => {
+    const { id, qid } = req.params;
+    
+    try {
+      await query("DELETE FROM questions WHERE id = ? AND exam_id = ?", [qid, id]);
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('Delete question error:', e.message);
+      res.status(500).json({ error: "Failed to delete question" });
+    }
+  });
+
+  // Get all users (admin)
+  app.get("/api/admin/users", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const users = await query("SELECT id, email, full_name, role FROM users ORDER BY id DESC");
+      res.json(users);
+    } catch (e: any) {
+      console.error('Fetch users error:', e.message);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Get user submissions (admin)
+  app.get("/api/admin/users/:userId/submissions", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const submissions = await query(
+        `SELECT s.id, e.title as examTitle, s.total_score as score, s.cheated, s.status, s.submitted_at
+         FROM submissions s
+         JOIN exams e ON s.exam_id = e.id
+         WHERE s.user_id = ?
+         ORDER BY s.submitted_at DESC`,
+        [userId]
+      );
+      res.json(submissions);
+    } catch (e: any) {
+      console.error('Fetch user submissions error:', e.message);
+      res.status(500).json({ error: "Failed to fetch submissions" });
+    }
+  });
+
+  // Get submission detail (admin)
+  app.get("/api/admin/submissions/:submissionId", authenticateToken, isAdmin, async (req, res) => {
+    try {
+      const { submissionId } = req.params;
+      const submissions = await query(
+        `SELECT s.id, u.email, e.id as examId, e.title as examTitle, s.total_score as score, s.cheated, s.status, s.submitted_at
+         FROM submissions s
+         JOIN users u ON s.user_id = u.id
+         JOIN exams e ON s.exam_id = e.id
+         WHERE s.id = ?`,
+        [submissionId]
+      );
+      const submission = Array.isArray(submissions) ? submissions[0] : submissions;
+      
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+
+      // Get answers
+      const answers = await query(
+        `SELECT a.id, a.question_id, a.student_answer, q.content, q.correct_answer
+         FROM answers a
+         JOIN questions q ON a.question_id = q.id
+         WHERE a.submission_id = ?`,
+        [submissionId]
+      );
+
+      res.json({ submission, answers });
+    } catch (e: any) {
+      console.error('Fetch submission detail error:', e.message);
+      res.status(500).json({ error: "Failed to fetch submission" });
     }
   });
 

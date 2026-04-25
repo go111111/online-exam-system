@@ -7,6 +7,7 @@ import './index.css';
 
 // Views
 const Login = () => import('./views/Login.vue');
+const Register = () => import('./views/Register.vue');
 const Dashboard = () => import('./views/Dashboard.vue');
 const ExamSession = () => import('./views/ExamSession.vue');
 const AdminDashboard = () => import('./views/AdminDashboard.vue');
@@ -15,6 +16,7 @@ const AdminResults = () => import('./views/AdminResults.vue');
 
 const routes = [
   { path: '/login', component: Login },
+  { path: '/register', component: Register },
   { path: '/', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/exam/:id', component: ExamSession, meta: { requiresAuth: true } },
   { path: '/admin', component: AdminDashboard, meta: { requiresAuth: true, adminOnly: true } },

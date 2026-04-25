@@ -5,12 +5,15 @@ import { ElMessage } from 'element-plus';
 
 const email = ref('');
 const password = ref('');
+const confirmPassword = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
-const rememberMe = ref(false);
-const auth = inject<any>('auth');
+const showConfirmPassword = ref(false);
 const api = inject<any>('api');
 const router = useRouter();
+
+// 表单相关
+const formRef = ref();
 
 // 验证QQ邮箱格式
 const isValidQQEmail = (e: string) => /^[0-9]+@qq\.com$/.test(e.toLowerCase());
@@ -46,11 +49,22 @@ const rules = {
       trigger: 'blur',
     },
   ],
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (value !== password.value) {
+          callback(new Error('两次输入密码不一致'));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
 };
 
-const formRef = ref();
-
-const handleLogin = async () => {
+const handleRegister = async () => {
   if (!formRef.value) return;
 
   const valid = await formRef.value.validate().catch(() => false);
@@ -58,70 +72,47 @@ const handleLogin = async () => {
 
   loading.value = true;
   try {
-    const data = await api.post('/api/login', {
+    await api.post('/api/register', {
       email: email.value.toLowerCase(),
       password: password.value,
     });
-    auth.login(data.user, data.token);
-    
-    // 保存记住我的状态
-    if (rememberMe.value) {
-      localStorage.setItem('rememberEmail', email.value.toLowerCase());
-    } else {
-      localStorage.removeItem('rememberEmail');
-    }
-
-    ElMessage.success('登录成功');
-    
-    // 管理员进入后台，普通用户进入首页
-    if (data.user.role === 'admin') {
-      router.push('/admin');
-    } else {
-      router.push('/');
-    }
+    ElMessage.success('注册成功！请用邮箱和密码登录');
+    // 注册成功后跳转到登录页
+    setTimeout(() => {
+      router.push('/login');
+    }, 1500);
   } catch (err: any) {
-    const errorMsg = err.message || '登录失败';
+    const errorMsg = err.message || '注册失败';
     ElMessage.error(errorMsg);
   } finally {
     loading.value = false;
   }
 };
 
-const goToRegister = () => {
-  router.push('/register');
+const goToLogin = () => {
+  router.push('/login');
 };
-
-// 加载记住的邮箱
-const loadRememberedEmail = () => {
-  const remembered = localStorage.getItem('rememberEmail');
-  if (remembered) {
-    email.value = remembered;
-    rememberMe.value = true;
-  }
-};
-
-loadRememberedEmail();
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-blue-50 to-white flex items-center justify-center p-4">
+  <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
     <div class="w-full max-w-md">
       <!-- 顶部装饰 -->
       <div class="text-center mb-12">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-full shadow-lg mb-4">
-          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v2a2 2 0 01-2 2H7a2 2 0 01-2-2v-2m14-4V7a2 2 0 00-2-2H7a2 2 0 00-2 2v2"/></svg>
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full shadow-lg mb-4">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
-        <h1 class="text-4xl font-bold text-gray-900 mb-2">欢迎登录</h1>
-        <p class="text-gray-600">在线考试系统</p>
+        <h1 class="text-4xl font-bold text-gray-900 mb-2">创建账户</h1>
+        <p class="text-gray-600">加入在线考试系统，开始学习之旅</p>
       </div>
 
-      <!-- 登录表单卡片 -->
+      <!-- 注册表单卡片 -->
       <div class="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
         <el-form
           ref="formRef"
-          :model="{ email, password }"
+          :model="{ email, password, confirmPassword }"
           :rules="rules"
-          @submit.prevent="handleLogin"
+          @submit.prevent="handleRegister"
           class="space-y-5"
         >
           <!-- 邮箱字段 -->
@@ -138,10 +129,10 @@ loadRememberedEmail();
               placeholder="例如：123456@qq.com"
               :disabled="loading"
               clearable
-              class="login-input"
+              class="register-input"
             />
             <div class="mt-2 text-xs text-gray-500">
-              💡 请输入您的QQ邮箱地址
+              💡 提示：请输入有效的QQ邮箱地址
             </div>
           </el-form-item>
 
@@ -150,36 +141,49 @@ loadRememberedEmail();
             <template #label>
               <div class="flex items-center text-sm font-semibold text-gray-900">
                 <Lock class="w-4 h-4 mr-2 text-indigo-600" />
-                密码
+                设置密码
               </div>
             </template>
             <el-input
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
-              placeholder="请输入密码"
+              placeholder="6-20个字符"
               :disabled="loading"
-              class="login-input password-input"
+              class="register-input"
+              show-password
+            />
+            <div class="mt-2 text-xs text-gray-500">
+              📝 密码需要6-20个字符
+            </div>
+          </el-form-item>
+
+          <!-- 确认密码字段 -->
+          <el-form-item prop="confirmPassword">
+            <template #label>
+              <div class="flex items-center text-sm font-semibold text-gray-900">
+                <Lock class="w-4 h-4 mr-2 text-indigo-600" />
+                再次确认密码
+              </div>
+            </template>
+            <el-input
+              v-model="confirmPassword"
+              :type="showConfirmPassword ? 'text' : 'password'"
+              placeholder="请再次输入密码"
+              :disabled="loading"
+              class="register-input"
               show-password
             />
           </el-form-item>
 
-          <!-- 记住我和忘记密码 -->
-          <div class="flex items-center justify-between">
-            <el-checkbox v-model="rememberMe" label="记住我" />
-            <a href="#" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-              忘记密码？
-            </a>
-          </div>
-
-          <!-- 登录按钮 -->
+          <!-- 注册按钮 -->
           <div class="pt-4">
             <el-button
               type="primary"
-              @click="handleLogin"
+              @click="handleRegister"
               :loading="loading"
               class="w-full py-3 text-lg font-bold"
             >
-              {{ loading ? '正在登录...' : '登录' }}
+              {{ loading ? '正在创建账户...' : '创建账户' }}
             </el-button>
           </div>
         </el-form>
@@ -191,27 +195,26 @@ loadRememberedEmail();
           <div class="flex-grow border-t border-gray-200"></div>
         </div>
 
-        <!-- 注册链接 -->
+        <!-- 登录链接 -->
         <div class="text-center">
-          <p class="text-gray-600 text-sm">还没有账户？</p>
+          <p class="text-gray-600 text-sm">已有账户？</p>
           <el-button
             type="text"
-            @click="goToRegister"
+            @click="goToLogin"
             class="mt-2 text-indigo-600 hover:text-indigo-700 font-semibold"
           >
-            立即注册
+            返回登录
           </el-button>
         </div>
       </div>
 
       <!-- 底部提示 -->
-      <div class="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center">
-        <p class="text-sm text-blue-900 font-medium">
-          👨‍💼 管理员演示账号
-        </p>
-        <p class="text-xs text-blue-700 mt-2">
-          邮箱：1776866817@qq.com<br>
-          密码：jungle123
+      <div class="mt-8 text-center text-xs text-gray-500">
+        <p>注册即表示您同意我们的</p>
+        <p class="mt-1">
+          <a href="#" class="text-indigo-600 hover:underline">服务条款</a>
+          和
+          <a href="#" class="text-indigo-600 hover:underline">隐私政策</a>
         </p>
       </div>
     </div>
@@ -219,37 +222,29 @@ loadRememberedEmail();
 </template>
 
 <style scoped>
-:deep(.login-input .el-input__wrapper) {
+:deep(.register-input .el-input__wrapper) {
   background-color: #f3f4f6;
   border-color: #e5e7eb;
   transition: all 0.3s ease;
 }
 
-:deep(.login-input .el-input__wrapper:hover) {
+:deep(.register-input .el-input__wrapper:hover) {
   border-color: #a5d6fd;
   background-color: #ffffff;
 }
 
-:deep(.login-input.is-focus .el-input__wrapper) {
+:deep(.register-input.is-focus .el-input__wrapper) {
   background-color: #ffffff;
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
   border: 0;
 }
 
 :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%);
-}
-
-:deep(.el-checkbox__label) {
-  color: #666666;
-  font-size: 0.875rem;
-}
-.password-input{
-  margin-left: 24px;
+  background: linear-gradient(135deg, #4338ca 0%, #7e22ce 100%);
 }
 </style>
