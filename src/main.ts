@@ -1,5 +1,7 @@
 import { createApp, ref } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
+import ElementPlus from 'element-plus';
+import 'element-plus/dist/index.css';
 import App from './App.vue';
 import './index.css';
 
@@ -25,7 +27,7 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, from) => {
+router.beforeEach((to, _from) => {
   const user = JSON.parse(localStorage.getItem('user') || 'null');
   if (to.meta.requiresAuth && !user) {
     return '/login';
@@ -38,7 +40,7 @@ const app = createApp(App);
 
 const auth = {
   user: ref(JSON.parse(localStorage.getItem('user') || 'null')),
-  token: ref(localStorage.getItem('token') || 'null'),
+  token: ref<string | null>(localStorage.getItem('token')),
   login(user: any, token: string) {
     this.user.value = user;
     this.token.value = token;
@@ -57,7 +59,7 @@ const api = {
   async request(url: string, options: any = {}) {
     const headers = {
       'Content-Type': 'application/json',
-      ...(auth.token.value ? { 'Authorization': `Bearer ${auth.token.value}` } : {}),
+      ...(auth.token.value ? { 'Authorization': `Bearer ${auth.token.value as string}` } : {}),
       ...options.headers,
     };
     const res = await fetch(url, { ...options, headers });
@@ -79,5 +81,6 @@ const api = {
 
 app.provide('auth', auth);
 app.provide('api', api);
+app.use(ElementPlus);
 app.use(router);
 app.mount('#root');

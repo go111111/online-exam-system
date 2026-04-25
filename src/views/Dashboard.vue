@@ -55,8 +55,17 @@ onMounted(async () => {
           <div class="p-3 bg-indigo-50 rounded-xl">
             <FileText class="w-6 h-6 text-indigo-600" />
           </div>
-          <span class="px-3 py-1 bg-green-50 text-green-600 text-xs font-bold rounded-full uppercase tracking-wider">
-            进行中
+          <span
+            :class="[
+              'px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider',
+              exam.submission_status === 'rejected'
+                ? 'bg-amber-50 text-amber-600'
+                : exam.submission_status
+                  ? 'bg-gray-100 text-gray-500'
+                  : 'bg-green-50 text-green-600'
+            ]"
+          >
+            {{ exam.submission_status === 'rejected' ? '已打回' : exam.submission_status ? '已提交' : '进行中' }}
           </span>
         </div>
         <h3 class="text-2xl font-bold text-gray-900 mb-2">{{ exam.title }}</h3>
@@ -65,21 +74,28 @@ onMounted(async () => {
         <div class="space-y-3 mb-8">
           <div class="flex items-center text-sm text-gray-600">
             <Clock class="w-4 h-4 mr-2 text-indigo-400" />
-            <span>时长: {{ exam.duration }} 分钟</span>
+            <span>时长: {{ exam.duration ?? exam.duration_minutes }} 分钟</span>
           </div>
           <div class="flex items-center text-sm text-gray-600">
             <Timer class="w-4 h-4 mr-2 text-indigo-400" />
-            <span>截止: {{ new Date(exam.endTime).toLocaleString() }}</span>
+            <span>截止: {{ new Date(exam.endTime ?? exam.end_time).toLocaleString() }}</span>
           </div>
         </div>
 
         <RouterLink 
+          v-if="!exam.submission_status || exam.submission_status === 'rejected'"
           :to="'/exam/' + exam.id"
           class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-center hover:bg-indigo-700 transition-all flex items-center justify-center group"
         >
-          开始考试
+          {{ exam.submission_status === 'rejected' ? '重新作答' : '开始考试' }}
           <ChevronRight class="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
         </RouterLink>
+        <div
+          v-else
+          class="w-full bg-gray-100 text-gray-500 py-3 rounded-xl font-bold text-center"
+        >
+          已提交，等待处理
+        </div>
       </div>
     </div>
   </div>

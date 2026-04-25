@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, inject, watch } from 'vue';
+import { ref, onMounted, onUnmounted, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Timer } from 'lucide-vue-next';
-import { cn } from '@/src/lib/utils';
+import { cn } from '@/lib/utils';
 
 const route = useRoute();
 const router = useRouter();
@@ -15,12 +15,24 @@ const timeLeft = ref(0);
 const cheated = ref(false);
 const startTime = ref(new Date().toISOString());
 const isSubmitting = ref(false);
+const violationCount = ref(0);
+const maxViolations = 3;
+const warningMessage = ref('');
+const infoMessage = ref('');
 
 onMounted(async () => {
   try {
     const data = await api.get(`/api/exams/${id}`);
     examData.value = data;
-    timeLeft.value = data.exam.duration * 60;
+    timeLeft.value = (Number(data.exam.duration) || Number(data.exam.duration_minutes) || 60) * 60;
+    if (data?.existingSubmission && data.existingSubmission.status !== 'rejected') {
+      infoMessage.value = '你已提交过该试卷，无法再次作答。';
+      setTimeout(() => {
+        router.push('/');
+      }, 1200);
+    } else if (data?.existingSubmission?.status === 'rejected') {
+      infoMessage.value = '管理员已打回本次提交，请重新作答并提交。';
+    }
   } catch (err: any) {
     alert(err.message);
     router.push('/');
@@ -43,28 +55,45 @@ onUnmounted(() => {
   clearInterval(timer);
 });
 
-// Anti-cheat
-const handleBlur = () => {
+const recordViolation = (reason: string) => {
+  if (!examData.value || isSubmitting.value) return;
   cheated.value = true;
-  alert('警告：检测到您离开了考试页面。此行为已被记录。');
+  violationCount.value += 1;
+  const remaining = maxViolations - violationCount.value;
+
+  if (remaining > 0) {
+    warningMessage.value = `检测到${reason}，再发生 ${remaining} 次将自动交卷。`;
+    return;
+  }
+
+  warningMessage.value = `超出允许范围，系统已自动交卷。`;
+  handleSubmit(true);
 };
 
+const handleBlur = () => recordViolation('离开考试页面');
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    recordViolation('切换浏览器标签');
+  }
+};
 const handleContextMenu = (e: any) => e.preventDefault();
 const handleCopy = (e: any) => e.preventDefault();
 
 onMounted(() => {
   window.addEventListener('blur', handleBlur);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('contextmenu', handleContextMenu);
   window.addEventListener('copy', handleCopy);
 });
 
 onUnmounted(() => {
   window.removeEventListener('blur', handleBlur);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('contextmenu', handleContextMenu);
   window.removeEventListener('copy', handleCopy);
 });
 
-const handleSubmit = async () => {
+const handleSubmit = async (isAuto = false) => {
   if (isSubmitting.value) return;
   isSubmitting.value = true;
   try {
@@ -73,12 +102,24 @@ const handleSubmit = async () => {
       cheated: cheated.value, 
       startTime: startTime.value 
     });
-    alert('考试已提交！');
-    router.push('/');
+    infoMessage.value = isAuto ? '系统已自动交卷。' : '考试已提交！';
+    setTimeout(() => {
+      router.push('/');
+    }, 800);
   } catch (err: any) {
-    alert('提交失败: ' + err.message);
+    infoMessage.value = '提交失败: ' + err.message;
     isSubmitting.value = false;
   }
+};
+
+const handleManualSubmit = async () => {
+  const confirmed = confirm('确定要提交吗？');
+  if (!confirmed) return;
+  await handleSubmit(false);
+};
+
+const clearWarning = () => {
+  warningMessage.value = '';
 };
 
 const formatTime = (seconds: number) => {
@@ -101,13 +142,32 @@ const formatTime = (seconds: number) => {
             <Timer class="w-4 h-4 mr-2" />
             {{ formatTime(timeLeft) }}
           </div>
+          <div class="text-xs font-semibold px-2 py-1 rounded bg-amber-50 text-amber-700">
+            异常行为 {{ violationCount }}/{{ maxViolations }}
+          </div>
         </div>
         <button 
-          @click="() => { if(confirm('确定要提交吗？')) handleSubmit() }"
+          @click="handleManualSubmit"
           class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all"
         >
           提交试卷
         </button>
+      </div>
+    </div>
+
+    <div class="max-w-3xl mx-auto px-4 mt-4 space-y-3">
+      <div
+        v-if="warningMessage"
+        class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700 text-sm flex items-center justify-between"
+      >
+        <span>{{ warningMessage }}</span>
+        <button class="text-xs font-semibold hover:opacity-80" @click="clearWarning">知道了</button>
+      </div>
+      <div
+        v-if="infoMessage"
+        class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-700 text-sm"
+      >
+        {{ infoMessage }}
       </div>
     </div>
 

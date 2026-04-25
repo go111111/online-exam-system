@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import mysql from "mysql2/promise";
+import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import cors from "cors";
@@ -16,6 +17,7 @@ const __dirname = path.dirname(__filename);
 const JWT_SECRET = process.env.JWT_SECRET || "default_secret_key_12345";
 
 let db: any;
+let isMySQL = false;
 
 async function initDB() {
   try {
@@ -27,14 +29,128 @@ async function initDB() {
       database: process.env.MYSQL_DATABASE,
     });
 
-    console.log("✅ Connected to MySQL (Aiven)");
+    console.log("✅ Connected to MySQL");
     await db.execute("SELECT 1");
     console.log("✅ Database connection verified");
+    isMySQL = true;
   } catch (err: any) {
-    console.error("❌ Failed to connect to MySQL:", err.message);
-    process.exit(1);
+    console.log("⚠️  MySQL not available, falling back to SQLite:", err.message);
+    console.log("🔄 Using SQLite database");
+    
+    db = new Database("exam.db");
+    isMySQL = false;
+    
+    // Create tables for SQLite
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        password TEXT,
+        full_name TEXT,
+        role TEXT DEFAULT 'student'
+      );
+      
+      CREATE TABLE IF NOT EXISTS exams (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        description TEXT,
+        start_time DATETIME,
+        end_time DATETIME,
+        duration_minutes INTEGER,
+        status TEXT DEFAULT 'published'
+      );
+      
+      CREATE TABLE IF NOT EXISTS questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        exam_id INTEGER,
+        question_type TEXT,
+        content TEXT,
+        correct_answer TEXT,
+        score INTEGER DEFAULT 5,
+        sort_order INTEGER DEFAULT 0
+      );
+      
+      CREATE TABLE IF NOT EXISTS question_options (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question_id INTEGER,
+        option_label TEXT,
+        option_text TEXT,
+        is_correct INTEGER DEFAULT 0
+      );
+      
+      CREATE TABLE IF NOT EXISTS submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        exam_id INTEGER,
+        cheated INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'submitted',
+        submitted_at DATETIME,
+        total_score REAL
+      );
+      
+      CREATE TABLE IF NOT EXISTS answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        submission_id INTEGER,
+        question_id INTEGER,
+        student_answer TEXT
+      );
+      
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        content TEXT,
+        type TEXT DEFAULT 'announcement',
+        target_role TEXT DEFAULT 'all',
+        exam_id INTEGER,
+        created_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE TABLE IF NOT EXISTS notification_reads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        notification_id INTEGER,
+        user_id INTEGER,
+        read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(notification_id, user_id)
+      );
+    `);
+    
+    // Create default admin user
+    const admin = db.prepare("SELECT * FROM users WHERE email = ?").get("admin@qq.com");
+    if (!admin) {
+      const hashedPassword = bcrypt.hashSync("admin123", 10);
+      db.prepare("INSERT INTO users (email, password, full_name, role) VALUES (?, ?, ?, ?)").run(
+        "admin@qq.com", hashedPassword, "Administrator", "admin"
+      );
+      console.log("✅ Default admin user created (admin@qq.com/admin123)");
+    }
   }
 }
+
+// Helper functions for database queries
+const query = async (sql: string, params: any[] = []) => {
+  if (isMySQL) {
+    const [result] = await db.execute(sql, params);
+    return result;
+  } else {
+    const stmt = db.prepare(sql);
+    if (sql.trim().toUpperCase().startsWith("SELECT")) {
+      return stmt.all(...params);
+    } else {
+      const result = stmt.run(...params);
+      return { insertId: result.lastInsertRowid, affectedRows: result.changes };
+    }
+  }
+};
+
+const getOne = async (sql: string, params: any[] = []) => {
+  if (isMySQL) {
+    const [result] = await db.execute(sql, params);
+    return (result as any)[0];
+  } else {
+    return db.prepare(sql).get(...params);
+  }
+};
 
 async function startServer() {
   await initDB();
@@ -62,23 +178,30 @@ async function startServer() {
 
   // Register
   app.post("/api/register", async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
     try {
-      if (!username || !password) {
-        return res.status(400).json({ error: "Username and password required" });
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
       }
-      if (username.length < 3 || password.length < 6) {
-        return res.status(400).json({ error: "Username min 3 chars, password min 6 chars" });
+      // 验证QQ邮箱格式
+      const qqEmailRegex = /^[0-9]+@qq\.com$/;
+      if (!qqEmailRegex.test(email.toLowerCase())) {
+        return res.status(400).json({ error: "Please use QQ email (xxx@qq.com)" });
+      }
+      if (password.length < 6 || password.length > 20) {
+        return res.status(400).json({ error: "Password must be 6-20 characters" });
       }
       const hashedPassword = bcrypt.hashSync(password, 10);
-      await db.execute(
-        "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-        [username, hashedPassword, 'student']
+      // Generate username from email (e.g., 123456@qq.com -> user_123456)
+      const username = `user_${email.toLowerCase().split('@')[0]}`;
+      await query(
+        "INSERT INTO users (email, password, role, username) VALUES (?, ?, ?, ?)",
+        [email.toLowerCase(), hashedPassword, 'student', username]
       );
       res.json({ message: "User registered successfully" });
     } catch (e: any) {
-      if (e.message.includes('Duplicate entry')) {
-        res.status(400).json({ error: "Username already exists" });
+      if (e.message.includes('Duplicate entry') || e.code === 'SQLITE_CONSTRAINT') {
+        res.status(400).json({ error: "Email already exists" });
       } else {
         console.error('Registration error:', e);
         res.status(400).json({ error: e.message || "Registration failed" });
@@ -88,30 +211,30 @@ async function startServer() {
 
   // Login
   app.post("/api/login", async (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
     try {
-      if (!username || !password) {
-        return res.status(400).json({ error: "Username and password required" });
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password required" });
       }
       
-      const [users]: any = await db.execute("SELECT * FROM users WHERE username = ?", [username]);
-      const user = users[0];
+      const users = await query("SELECT * FROM users WHERE email = ?", [email.toLowerCase()]);
+      const user = Array.isArray(users) ? users[0] : users;
       
       if (!user) {
-        return res.status(401).json({ error: "Invalid username or password" });
+        return res.status(401).json({ error: "Invalid email or password" });
       }
       
       if (!bcrypt.compareSync(password, user.password)) {
-        return res.status(401).json({ error: "Invalid username or password" });
+        return res.status(401).json({ error: "Invalid email or password" });
       }
       
       const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
+        { id: user.id, email: user.email, role: user.role },
         JWT_SECRET
       );
       res.json({
         token,
-        user: { id: user.id, username: user.username, role: user.role }
+        user: { id: user.id, email: user.email, role: user.role }
       });
     } catch (e: any) {
       res.status(500).json({ error: "Login failed" });
@@ -121,7 +244,8 @@ async function startServer() {
   // Get exams
   app.get("/api/exams", authenticateToken, async (req, res) => {
     try {
-      const [exams]: any = await db.execute(
+      const userId = (req as any).user.id;
+      const exams = await query(
         "SELECT * FROM exams WHERE status != 'draft' ORDER BY start_time DESC"
       );
       res.json(exams);
@@ -134,43 +258,42 @@ async function startServer() {
   // Get exam detail with questions
   app.get("/api/exams/:id", authenticateToken, async (req, res) => {
     const { id } = req.params;
+    const userId = (req as any).user.id;
     try {
-      const [exams]: any = await db.execute(
-        "SELECT * FROM exams WHERE id = ?",
-        [id]
-      );
-      if (exams.length === 0) {
+      const exams = await query("SELECT * FROM exams WHERE id = ?", [id]);
+      const exam = Array.isArray(exams) ? exams[0] : exams;
+      
+      if (!exam) {
         return res.status(404).json({ error: "Exam not found" });
       }
 
-      const exam = exams[0];
-      
       // Get questions
-      const [questions]: any = await db.execute(
-        `SELECT id, question_type as type, content, correct_answer as answer, score
-         FROM questions WHERE exam_id = ? ORDER BY sort_order`,
+      const questions = await query(
+        "SELECT id, question_type as type, content, correct_answer as answer, score FROM questions WHERE exam_id = ? ORDER BY sort_order",
         [id]
       );
 
-      // For choice questions, get options
-      for (const q of questions) {
-        if (q.type === 'single_choice') {
-          q.type = 'choice';
-          const [options]: any = await db.execute(
-            "SELECT option_text FROM question_options WHERE question_id = ? ORDER BY option_label",
-            [q.id]
-          );
-          q.options = options.map((o: any) => o.option_text);
-        } else if (q.type === 'fill_blank') {
-          q.type = 'fill';
-        } else if (q.type === 'short_answer') {
-          q.type = 'text';
+      // Process questions
+      const processedQuestions = (Array.isArray(questions) ? questions : []).map((q: any) => {
+        const qq = { ...q };
+        if (qq.type === 'single_choice') {
+          qq.type = 'choice';
+        } else if (qq.type === 'fill_blank') {
+          qq.type = 'fill';
+        } else if (qq.type === 'short_answer') {
+          qq.type = 'text';
         }
-        // Don't send correct_answer to student
-        delete q.answer;
-      }
+        delete qq.answer;
+        return qq;
+      });
 
-      res.json({ exam, questions });
+      const submissions = await query(
+        "SELECT id, status FROM submissions WHERE exam_id = ? AND user_id = ? LIMIT 1",
+        [id, userId]
+      );
+      const submission = Array.isArray(submissions) ? submissions[0] : submissions;
+
+      res.json({ exam, questions: processedQuestions, existingSubmission: submission || null });
     } catch (e: any) {
       console.error('Fetch exam error:', e.message);
       res.status(500).json({ error: "Failed to fetch exam" });
@@ -188,20 +311,35 @@ async function startServer() {
         return res.status(400).json({ error: "Missing answers" });
       }
 
-      // Create submission
-      const result: any = await db.execute(
-        `INSERT INTO submissions (user_id, exam_id, cheated)
-         VALUES (?, ?, ?)`,
-        [userId, id, cheated ? 1 : 0]
+      const existing = await query(
+        `SELECT id, status FROM submissions WHERE user_id = ? AND exam_id = ? LIMIT 1`,
+        [userId, id]
       );
+      const existingSub = Array.isArray(existing) ? existing[0] : existing;
 
-      const submissionId = result[0].insertId;
+      let submissionId: number;
+      if (existingSub) {
+        if (existingSub.status !== 'rejected') {
+          return res.status(400).json({ error: "This exam has already been submitted" });
+        }
+        submissionId = existingSub.id;
+        await query(
+          `UPDATE submissions SET submitted_at = CURRENT_TIMESTAMP, cheated = ?, status = 'submitted' WHERE id = ?`,
+          [cheated ? 1 : 0, submissionId]
+        );
+        await query("DELETE FROM answers WHERE submission_id = ?", [submissionId]);
+      } else {
+        const result = await query(
+          `INSERT INTO submissions (user_id, exam_id, cheated, status) VALUES (?, ?, ?, 'submitted')`,
+          [userId, id, cheated ? 1 : 0]
+        );
+        submissionId = isMySQL ? (result as any).insertId : (result as any).insertId;
+      }
 
-      // Save answers (answers object: questionId => answer)
+      // Save answers
       for (const [questionId, studentAnswer] of Object.entries(answers)) {
-        await db.execute(
-          `INSERT INTO answers (submission_id, question_id, student_answer)
-           VALUES (?, ?, ?)`,
+        await query(
+          `INSERT INTO answers (submission_id, question_id, student_answer) VALUES (?, ?, ?)`,
           [submissionId, questionId, studentAnswer]
         );
       }
@@ -216,9 +354,7 @@ async function startServer() {
   // Get admin exams
   app.get("/api/admin/exams", authenticateToken, isAdmin, async (req, res) => {
     try {
-      const [exams]: any = await db.execute(
-        "SELECT * FROM exams ORDER BY start_time DESC"
-      );
+      const exams = await query("SELECT * FROM exams ORDER BY start_time DESC");
       res.json(exams);
     } catch (e: any) {
       console.error('Fetch admin exams error:', e.message || e);
@@ -228,87 +364,50 @@ async function startServer() {
 
   // Create exam
   app.post("/api/admin/exams", authenticateToken, isAdmin, async (req, res) => {
-    const {
-      title,
-      description,
-      start_time,
-      end_time,
-      duration_minutes,
-      total_score,
-      status,
-      startTime,
-      endTime,
-      duration,
-      totalScore,
-    } = req.body;
-
-    const finalStart = start_time || startTime;
-    const finalEnd = end_time || endTime;
-    const finalDuration = duration_minutes ?? duration;
-    const finalScore = total_score ?? totalScore ?? 100;
-    const finalStatus = status || 'published';
+    const { title, description, start_time, end_time, duration_minutes, status } = req.body;
 
     try {
-      if (!title || !finalStart || !finalEnd || !finalDuration) {
+      if (!title || !start_time || !end_time) {
         return res.status(400).json({ error: "Missing required exam fields" });
       }
 
-      const result: any = await db.execute(
-        `INSERT INTO exams (title, description, start_time, end_time, duration_minutes, total_score, created_by, status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [title, description, finalStart, finalEnd, finalDuration, finalScore, (req as any).user.id, finalStatus]
+      const result = await query(
+        `INSERT INTO exams (title, description, start_time, end_time, duration_minutes, status) VALUES (?, ?, ?, ?, ?, ?)`,
+        [title, description, start_time, end_time, duration_minutes || 60, status || 'published']
       );
-      res.json({ id: result[0].insertId });
+      const id = isMySQL ? (result as any).insertId : (result as any).insertId;
+      res.json({ id });
     } catch (e: any) {
       console.error('Create exam error:', e.message || e);
       res.status(500).json({ error: "Failed to create exam" });
     }
   });
 
-  // Health check
-  app.get("/api/health", async (req, res) => {
-    try {
-      await db.execute("SELECT 1");
-      res.json({ status: "ok", database: "connected" });
-    } catch (e) {
-      res.status(500).json({ status: "error", database: "disconnected" });
-    }
-  });
-
-  // Get exam questions
+  // Get exam questions (admin)
   app.get("/api/admin/exams/:id/questions", authenticateToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-      const [questions]: any = await db.execute(
-        `SELECT id, question_type as type, content, correct_answer as answer, score
-         FROM questions WHERE exam_id = ? ORDER BY sort_order`,
+      const questions = await query(
+        "SELECT id, question_type as type, content, correct_answer as answer, score FROM questions WHERE exam_id = ? ORDER BY sort_order",
         [id]
       );
       
-      // For choice questions, parse options from question_options table
-      for (const q of questions) {
-        if (q.type === 'single_choice') {
-          q.type = 'choice';
-          const [options]: any = await db.execute(
-            "SELECT option_text FROM question_options WHERE question_id = ? ORDER BY option_label",
-            [q.id]
-          );
-          q.options = options.map((o: any) => o.option_text);
-        } else if (q.type === 'fill_blank') {
-          q.type = 'fill';
-        } else if (q.type === 'short_answer') {
-          q.type = 'text';
-        }
-      }
+      const processedQuestions = (Array.isArray(questions) ? questions : []).map((q: any) => {
+        const qq = { ...q };
+        if (qq.type === 'single_choice') qq.type = 'choice';
+        else if (qq.type === 'fill_blank') qq.type = 'fill';
+        else if (qq.type === 'short_answer') qq.type = 'text';
+        return qq;
+      });
       
-      res.json(questions);
+      res.json(processedQuestions);
     } catch (e: any) {
       console.error('Fetch questions error:', e.message);
       res.status(500).json({ error: "Failed to fetch questions" });
     }
   });
 
-  // Add question to exam
+  // Add question
   app.post("/api/admin/exams/:id/questions", authenticateToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const { type, content, options, answer, score = 5 } = req.body;
@@ -325,32 +424,11 @@ async function startServer() {
         questionType = 'fill_blank';
       }
 
-      // Get max sort_order
-      const [maxSort]: any = await db.execute(
-        "SELECT MAX(sort_order) as max_order FROM questions WHERE exam_id = ?",
-        [id]
+      const result = await query(
+        `INSERT INTO questions (exam_id, question_type, content, score, correct_answer, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
+        [id, questionType, content, score, answer, 0]
       );
-      const nextOrder = (maxSort[0]?.max_order || 0) + 1;
-
-      const result: any = await db.execute(
-        `INSERT INTO questions (exam_id, question_type, content, score, correct_answer, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, questionType, content, score, answer, nextOrder]
-      );
-
-      const questionId = result[0].insertId;
-
-      // Add options for choice questions
-      if (type === 'choice' && options && Array.isArray(options)) {
-        const labels = ['A', 'B', 'C', 'D'];
-        for (let i = 0; i < options.length; i++) {
-          await db.execute(
-            `INSERT INTO question_options (question_id, option_label, option_text, is_correct)
-             VALUES (?, ?, ?, ?)`,
-            [questionId, labels[i], options[i], options[i] === answer ? 1 : 0]
-          );
-        }
-      }
+      const questionId = isMySQL ? (result as any).insertId : (result as any).insertId;
 
       res.json({ id: questionId });
     } catch (e: any) {
@@ -359,80 +437,19 @@ async function startServer() {
     }
   });
 
-  // Update question
-  app.put("/api/admin/exams/:id/questions/:qid", authenticateToken, isAdmin, async (req, res) => {
-    const { id, qid } = req.params;
-    const { type, content, options, answer, score = 5 } = req.body;
-    
-    try {
-      if (!type || !content || !answer) {
-        return res.status(400).json({ error: "Missing required question fields" });
-      }
-
-      let questionType = 'short_answer';
-      if (type === 'choice') {
-        questionType = 'single_choice';
-      } else if (type === 'fill') {
-        questionType = 'fill_blank';
-      }
-
-      await db.execute(
-        `UPDATE questions SET question_type = ?, content = ?, score = ?, correct_answer = ? WHERE id = ? AND exam_id = ?`,
-        [questionType, content, score, answer, qid, id]
-      );
-
-      // Update options if choice question
-      if (type === 'choice') {
-        await db.execute("DELETE FROM question_options WHERE question_id = ?", [qid]);
-        if (options && Array.isArray(options)) {
-          const labels = ['A', 'B', 'C', 'D'];
-          for (let i = 0; i < options.length; i++) {
-            await db.execute(
-              `INSERT INTO question_options (question_id, option_label, option_text, is_correct)
-               VALUES (?, ?, ?, ?)`,
-              [qid, labels[i], options[i], options[i] === answer ? 1 : 0]
-            );
-          }
-        }
-      }
-
-      res.json({ id: qid });
-    } catch (e: any) {
-      console.error('Update question error:', e.message);
-      res.status(500).json({ error: "Failed to update question" });
-    }
-  });
-
-  // Delete question
-  app.delete("/api/admin/exams/:id/questions/:qid", authenticateToken, isAdmin, async (req, res) => {
-    const { id, qid } = req.params;
-    
-    try {
-      // Delete options first
-      await db.execute("DELETE FROM question_options WHERE question_id = ?", [qid]);
-      // Delete question
-      await db.execute("DELETE FROM questions WHERE id = ? AND exam_id = ?", [qid, id]);
-      res.json({ success: true });
-    } catch (e: any) {
-      console.error('Delete question error:', e.message);
-      res.status(500).json({ error: "Failed to delete question" });
-    }
-  });
-
   // Update exam
   app.put("/api/admin/exams/:id", authenticateToken, isAdmin, async (req, res) => {
     const { id } = req.params;
-    const { title, description, start_time, end_time, duration_minutes, total_score, status } = req.body;
+    const { title, description, start_time, end_time, duration_minutes, status } = req.body;
     
     try {
       if (!title || !start_time || !end_time) {
         return res.status(400).json({ error: "Missing required exam fields" });
       }
 
-      await db.execute(
-        `UPDATE exams SET title = ?, description = ?, start_time = ?, end_time = ?, duration_minutes = ?, total_score = ?, status = ? 
-         WHERE id = ?`,
-        [title, description, start_time, end_time, duration_minutes, total_score || 100, status || 'published', id]
+      await query(
+        `UPDATE exams SET title = ?, description = ?, start_time = ?, end_time = ?, duration_minutes = ?, status = ? WHERE id = ?`,
+        [title, description, start_time, end_time, duration_minutes || 60, status || 'published', id]
       );
 
       res.json({ id });
@@ -447,7 +464,7 @@ async function startServer() {
     const { id } = req.params;
     
     try {
-      await db.execute("DELETE FROM exams WHERE id = ?", [id]);
+      await query("DELETE FROM exams WHERE id = ?", [id]);
       res.json({ success: true });
     } catch (e: any) {
       console.error('Delete exam error:', e.message);
@@ -455,17 +472,11 @@ async function startServer() {
     }
   });
 
-  // Get admin results (exam submissions)
+  // Get admin results
   app.get("/api/admin/results", authenticateToken, isAdmin, async (req, res) => {
     try {
-      const [results]: any = await db.execute(
-        `SELECT 
-          s.id,
-          u.username,
-          e.title as examTitle,
-          s.total_score as score,
-          s.submitted_at as endTime,
-          s.cheated
+      const results = await query(
+        `SELECT s.id, u.email, e.title as examTitle, s.total_score as score, s.cheated, s.status
          FROM submissions s
          JOIN users u ON s.user_id = u.id
          JOIN exams e ON s.exam_id = e.id
@@ -478,119 +489,15 @@ async function startServer() {
     }
   });
 
-  // Get user notifications
-  app.get("/api/notifications", authenticateToken, async (req, res) => {
-    try {
-      const userId = (req as any).user.id;
-      const userRole = (req as any).user.role;
-
-      const [notifications]: any = await db.execute(
-        `SELECT n.*, 
-                (SELECT COUNT(*) FROM notification_reads WHERE notification_id = n.id AND user_id = ?) as read_count
-         FROM notifications n
-         WHERE (n.target_role = 'all' OR n.target_role = ? OR (n.type = 'exam' AND n.exam_id IN (
-           SELECT exam_id FROM exam_participants WHERE user_id = ?
-         )))
-         ORDER BY n.created_at DESC
-         LIMIT 50`,
-        [userId, userRole, userId]
-      );
-
-      // Mark each notification with read status
-      const result = notifications.map((n: any) => ({
-        ...n,
-        is_read: n.read_count > 0
-      }));
-
-      res.json(result);
-    } catch (e: any) {
-      console.error('Fetch notifications error:', e.message);
-      res.status(500).json({ error: "Failed to fetch notifications" });
-    }
-  });
-
-  // Get unread notification count
-  app.get("/api/notifications/unread/count", authenticateToken, async (req, res) => {
-    try {
-      const userId = (req as any).user.id;
-      const userRole = (req as any).user.role;
-
-      const [result]: any = await db.execute(
-        `SELECT COUNT(DISTINCT n.id) as unread_count
-         FROM notifications n
-         LEFT JOIN notification_reads nr ON n.id = nr.notification_id AND nr.user_id = ?
-         WHERE nr.id IS NULL 
-         AND (n.target_role = 'all' OR n.target_role = ? OR (n.type = 'exam' AND n.exam_id IN (
-           SELECT exam_id FROM exam_participants WHERE user_id = ?
-         )))`,
-        [userId, userRole, userId]
-      );
-
-      res.json({ unread_count: result[0]?.unread_count || 0 });
-    } catch (e: any) {
-      console.error('Fetch unread count error:', e.message);
-      res.status(500).json({ error: "Failed to fetch unread count" });
-    }
-  });
-
-  // Publish notification (admin only)
-  app.post("/api/admin/notifications", authenticateToken, isAdmin, async (req, res) => {
-    const { title, content, type = 'announcement', target_role = 'all', exam_id } = req.body;
-    
-    try {
-      if (!title || !content) {
-        return res.status(400).json({ error: "Title and content required" });
-      }
-
-      const result: any = await db.execute(
-        `INSERT INTO notifications (title, content, type, target_role, exam_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [title, content, type, target_role, exam_id || null, (req as any).user.id]
-      );
-
-      res.json({ id: result[0].insertId });
-    } catch (e: any) {
-      console.error('Create notification error:', e.message);
-      res.status(500).json({ error: "Failed to create notification" });
-    }
-  });
-
-  // Mark notification as read
-  app.put("/api/notifications/:id/read", authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const userId = (req as any).user.id;
-
-    try {
-      await db.execute(
-        `INSERT INTO notification_reads (notification_id, user_id) VALUES (?, ?) 
-         ON DUPLICATE KEY UPDATE read_at = NOW()`,
-        [id, userId]
-      );
-      res.json({ success: true });
-    } catch (e: any) {
-      console.error('Mark read error:', e.message);
-      res.status(500).json({ error: "Failed to mark as read" });
-    }
-  });
-
-  // Delete notification (admin only)
-  app.delete("/api/admin/notifications/:id", authenticateToken, isAdmin, async (req, res) => {
-    const { id } = req.params;
-
-    try {
-      await db.execute("DELETE FROM notifications WHERE id = ?", [id]);
-      res.json({ success: true });
-    } catch (e: any) {
-      console.error('Delete notification error:', e.message);
-      res.status(500).json({ error: "Failed to delete notification" });
-    }
-  });
-
   // Health check
   app.get("/api/health", async (req, res) => {
     try {
-      await db.execute("SELECT 1");
-      res.json({ status: "ok", database: "connected" });
+      if (isMySQL) {
+        await db.execute("SELECT 1");
+      } else {
+        db.prepare("SELECT 1").get();
+      }
+      res.json({ status: "ok", database: isMySQL ? "MySQL" : "SQLite" });
     } catch (e) {
       res.status(500).json({ status: "error", database: "disconnected" });
     }
@@ -609,7 +516,7 @@ async function startServer() {
   });
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ Server running on http://localhost:3000`);
+    console.log(`✅ Server running on http://localhost:${PORT}`);
   });
 }
 

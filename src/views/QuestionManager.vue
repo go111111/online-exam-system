@@ -2,7 +2,7 @@
 import { ref, onMounted, inject } from 'vue';
 import { useRoute } from 'vue-router';
 import { Plus, ChevronRight, X, Edit, Trash2 } from 'lucide-vue-next';
-import { cn } from '@/src/lib/utils';
+import { cn } from '@/lib/utils';
 
 const route = useRoute();
 const id = route.params.id;

@@ -1,25 +1,15 @@
--- 1. 删除所有旧表（按顺序，因为有外键约束）
-DROP TABLE IF EXISTS cheat_logs;
-DROP TABLE IF EXISTS answers;
-DROP TABLE IF EXISTS submissions;
-DROP TABLE IF EXISTS question_options;
-DROP TABLE IF EXISTS questions;
-DROP TABLE IF EXISTS exam_participants;
-DROP TABLE IF EXISTS exams;
-DROP TABLE IF EXISTS users;
 
--- 2. 创建新的 users 表（username/password 登录）
+-- 2. 创建新的 users 表（邮箱/密码 登录）
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(100) UNIQUE NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    email VARCHAR(150),
     full_name VARCHAR(100),
     role ENUM('admin', 'student') NOT NULL DEFAULT 'student',
     is_active TINYINT(1) DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_username (username),
+    INDEX idx_email (email),
     INDEX idx_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -85,11 +75,15 @@ CREATE TABLE IF NOT EXISTS submissions (
     total_score DECIMAL(6,2) DEFAULT NULL,
     used_time_minutes INT DEFAULT NULL,
     cheated TINYINT(1) DEFAULT 0,
+    status ENUM('submitted', 'graded', 'rejected') DEFAULT 'submitted',
+    rejection_reason TEXT,
+    rejection_by INT,
     has_manual_scoring TINYINT(1) DEFAULT 0,
     scored_by INT,
     scored_at DATETIME,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+    FOREIGN KEY (rejection_by) REFERENCES users(id),
     FOREIGN KEY (scored_by) REFERENCES users(id),
     UNIQUE KEY unique_user_exam (user_id, exam_id),
     INDEX idx_submitted_at (submitted_at)
@@ -121,9 +115,9 @@ CREATE TABLE IF NOT EXISTS cheat_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. 插入默认管理员
-INSERT INTO users (username, password, full_name, role) 
-VALUES ('Admin', '$2a$10$nRvLK/VoVOxqMkQdOKHfWuGLz8WEQvLy0lWn0ELGlpEZdE5qqwq.O', 'Administrator', 'admin');
+INSERT INTO users (email, password, full_name, role) 
+VALUES ('1776866817@qq.com', 'jungle123', 'Administrator', 'admin');
 
 -- 5. 验证
 SHOW TABLES;
-SELECT id, email, username, role FROM users;
+SELECT id, email, full_name, role FROM users;

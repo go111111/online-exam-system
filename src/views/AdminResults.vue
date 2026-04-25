@@ -8,6 +8,16 @@ const api = inject<any>('api');
 onMounted(async () => {
   results.value = await api.get('/api/admin/results');
 });
+
+const refreshResults = async () => {
+  results.value = await api.get('/api/admin/results');
+};
+
+const rejectSubmission = async (row: any) => {
+  const reason = prompt('请输入打回原因（可选）') || '管理员要求重新作答';
+  await api.put(`/api/admin/submissions/${row.id}/reject`, { reason });
+  await refreshResults();
+};
 </script>
 
 <template>
@@ -28,6 +38,7 @@ onMounted(async () => {
             <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">得分</th>
             <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">状态</th>
             <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">提交时间</th>
+            <th class="px-8 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">操作</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-50">
@@ -36,7 +47,10 @@ onMounted(async () => {
             <td class="px-8 py-6 text-gray-600">{{ res.examTitle }}</td>
             <td class="px-8 py-6 font-mono font-bold text-indigo-600">{{ res.score }}</td>
             <td class="px-8 py-6">
-              <span v-if="res.cheated" class="flex items-center text-red-500 text-xs font-bold uppercase tracking-wider">
+              <span v-if="res.status === 'rejected'" class="flex items-center text-amber-600 text-xs font-bold uppercase tracking-wider">
+                已打回
+              </span>
+              <span v-else-if="res.cheated" class="flex items-center text-red-500 text-xs font-bold uppercase tracking-wider">
                 <AlertTriangle class="w-3 h-3 mr-1" />
                 疑似作弊
               </span>
@@ -46,6 +60,16 @@ onMounted(async () => {
               </span>
             </td>
             <td class="px-8 py-6 text-sm text-gray-400">{{ new Date(res.endTime).toLocaleString() }}</td>
+            <td class="px-8 py-6">
+              <button
+                v-if="res.status !== 'rejected'"
+                @click="rejectSubmission(res)"
+                class="px-3 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-colors"
+              >
+                打回重做
+              </button>
+              <span v-else class="text-xs text-gray-400">{{ res.rejectionReason || '无原因' }}</span>
+            </td>
           </tr>
         </tbody>
       </table>

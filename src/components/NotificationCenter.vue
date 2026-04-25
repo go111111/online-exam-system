@@ -1,37 +1,50 @@
-<script setup lang="ts">
-import { ref, onMounted, inject, computed } from 'vue';
+<script lang="ts">
+import { defineComponent, ref, onMounted, inject, computed } from 'vue';
 import { Bell, X, CheckCircle, ChevronRight } from 'lucide-vue-next';
 
-const api = inject<any>('api');
-const notifications = ref<any[]>([]);
-const unreadCount = ref(0);
-const showPanel = ref(false);
+export default defineComponent({
+  setup() {
+    const api = inject<any>('api');
+    const notifications = ref<any[]>([]);
+    const unreadCount = ref(0);
+    const showPanel = ref(false);
 
-const fetchNotifications = async () => {
-  try {
-    notifications.value = await api.get('/api/notifications');
-    const countRes = await api.get('/api/notifications/unread/count');
-    unreadCount.value = countRes.unread_count;
-  } catch (err) {
-    console.error('Failed to fetch notifications:', err);
+    const fetchNotifications = async () => {
+      try {
+        notifications.value = await api.get('/api/notifications');
+        const countRes = await api.get('/api/notifications/unread/count');
+        unreadCount.value = countRes.unread_count;
+      } catch (err) {
+        console.error('Failed to fetch notifications:', err);
+      }
+    };
+
+    const markAsRead = async (id: number) => {
+      try {
+        await api.put(`/api/notifications/${id}/read`, {});
+        fetchNotifications();
+      } catch (err) {
+        console.error('Failed to mark as read:', err);
+      }
+    };
+
+    const unreadNotifications = computed(() => notifications.value.filter(n => !n.is_read));
+
+    onMounted(() => {
+      fetchNotifications();
+      // Refresh every 30 seconds
+      setInterval(fetchNotifications, 30000);
+    });
+
+    return {
+      notifications,
+      unreadCount,
+      showPanel,
+      fetchNotifications,
+      markAsRead,
+      unreadNotifications
+    };
   }
-};
-
-const markAsRead = async (id: number) => {
-  try {
-    await api.put(`/api/notifications/${id}/read`, {});
-    fetchNotifications();
-  } catch (err) {
-    console.error('Failed to mark as read:', err);
-  }
-};
-
-const unreadNotifications = computed(() => notifications.value.filter(n => !n.is_read));
-
-onMounted(() => {
-  fetchNotifications();
-  // Refresh every 30 seconds
-  setInterval(fetchNotifications, 30000);
 });
 </script>
 

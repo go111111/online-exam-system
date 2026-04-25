@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
-import { Plus, BarChart, FileText, Clock, Timer, Edit, Trash2, X, Bell } from 'lucide-vue-next';
-import { cn } from '@/src/lib/utils';
+import { Plus, BarChart, Edit, Trash2, X, Bell } from 'lucide-vue-next';
+import { cn } from '@/lib/utils';
 
 const exams = ref<any[]>([]);
 const showAdd = ref(false);

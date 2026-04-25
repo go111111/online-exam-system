@@ -104,7 +104,7 @@ provide('api', api);
               <NotificationCenter />
               <div class="flex items-center space-x-2 px-3 py-1 bg-gray-50 rounded-full border border-gray-100">
                 <User class="w-4 h-4 text-gray-400" />
-                <span class="text-sm font-medium text-gray-700">{{ user.username }}</span>
+                <span class="text-sm font-medium text-gray-700">{{ user.email }}</span>
               </div>
               <button 
                 @click="logout(); $router.push('/login')"
