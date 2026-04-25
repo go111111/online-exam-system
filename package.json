@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-     "client": "vite"
+    "client": "vite"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -20,6 +20,7 @@
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
     "@vitejs/plugin-vue": "^6.0.5",
+    "axios": "^1.15.2",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.8.0",
     "clsx": "^2.1.1",

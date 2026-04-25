@@ -18,6 +18,67 @@ const JWT_SECRET = process.env.JWT_SECRET || "default_secret_key_12345";
 
 let db: any;
 let isMySQL = false;
+let userTableHasUsername = false;
+
+const DEFAULT_ADMIN_EMAIL = "1776866817@qq.com";
+const DEFAULT_ADMIN_PASSWORD = "jungle123";
+
+const isBcryptHash = (value: string) => /^\$2[aby]\$\d{2}\$/.test(value);
+const buildUsernameFromEmail = (email: string) => email.toLowerCase().split("@")[0];
+
+async function getAvailableUsername(base: string) {
+  const normalizedBase = (base || "user").toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const firstCandidate = normalizedBase || "user";
+  const exists = await getOne("SELECT id FROM users WHERE username = ? LIMIT 1", [firstCandidate]);
+  if (!exists) return firstCandidate;
+
+  let suffix = 1;
+  while (suffix <= 9999) {
+    const candidate = `${firstCandidate}_${suffix}`;
+    const collision = await getOne("SELECT id FROM users WHERE username = ? LIMIT 1", [candidate]);
+    if (!collision) return candidate;
+    suffix += 1;
+  }
+
+  return `${firstCandidate}_${Date.now()}`;
+}
+
+async function detectUserSchema() {
+  if (isMySQL) {
+    const [columns] = await db.execute("SHOW COLUMNS FROM users LIKE 'username'");
+    userTableHasUsername = Array.isArray(columns) && columns.length > 0;
+    return;
+  }
+
+  const columns = db.prepare("PRAGMA table_info(users)").all();
+  userTableHasUsername = Array.isArray(columns) && columns.some((col: any) => col.name === "username");
+}
+
+async function createUser(email: string, password: string, fullName: string, role: string) {
+  const normalizedEmail = email.toLowerCase();
+  if (userTableHasUsername) {
+    const username = await getAvailableUsername(buildUsernameFromEmail(normalizedEmail));
+    await query(
+      "INSERT INTO users (username, email, password, full_name, role) VALUES (?, ?, ?, ?, ?)",
+      [username, normalizedEmail, password, fullName, role]
+    );
+    return;
+  }
+
+  await query(
+    "INSERT INTO users (email, password, full_name, role) VALUES (?, ?, ?, ?)",
+    [normalizedEmail, password, fullName, role]
+  );
+}
+
+async function ensureAdminUsers() {
+  const defaultAdmin = await getOne("SELECT id FROM users WHERE email = ? LIMIT 1", [DEFAULT_ADMIN_EMAIL]);
+  if (!defaultAdmin) {
+    const hashedPassword = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, 10);
+    await createUser(DEFAULT_ADMIN_EMAIL, hashedPassword, "Administrator", "admin");
+    console.log(`✅ Default admin user created (${DEFAULT_ADMIN_EMAIL}/${DEFAULT_ADMIN_PASSWORD})`);
+  }
+}
 
 async function initDB() {
   try {
@@ -115,16 +176,10 @@ async function initDB() {
       );
     `);
     
-    // Create default admin user
-    const admin = db.prepare("SELECT * FROM users WHERE email = ?").get("1776866817@qq.com");
-    if (!admin) {
-      const hashedPassword = bcrypt.hashSync("jungle123", 10);
-      db.prepare("INSERT INTO users (email, password, full_name, role) VALUES (?, ?, ?, ?)").run(
-        "1776866817@qq.com", hashedPassword, "Administrator", "admin"
-      );
-      console.log("✅ Default admin user created (1776866817@qq.com/jungle123)");
-    }
   }
+
+  await detectUserSchema();
+  await ensureAdminUsers();
 }
 
 // Helper functions for database queries
@@ -193,10 +248,7 @@ async function startServer() {
       }
       const hashedPassword = bcrypt.hashSync(password, 10);
       
-      await query(
-        "INSERT INTO users (email, password, full_name, role) VALUES (?, ?, ?, ?)",
-        [email.toLowerCase(), hashedPassword, email.toLowerCase().split('@')[0], 'student']
-      );
+      await createUser(email, hashedPassword, email.toLowerCase().split('@')[0], "student");
       res.json({ message: "User registered successfully" });
     } catch (e: any) {
       if (e.message.includes('Duplicate entry') || e.code === 'SQLITE_CONSTRAINT') {
@@ -223,7 +275,21 @@ async function startServer() {
         return res.status(401).json({ error: "Invalid email or password" });
       }
       
-      if (!bcrypt.compareSync(password, user.password)) {
+      let passwordValid = false;
+      const storedPassword = user.password as string;
+
+      if (storedPassword && isBcryptHash(storedPassword)) {
+        passwordValid = bcrypt.compareSync(password, storedPassword);
+      } else {
+        // Backward compatibility: support legacy plain-text password rows.
+        passwordValid = password === storedPassword;
+        if (passwordValid) {
+          const upgradedHash = bcrypt.hashSync(password, 10);
+          await query("UPDATE users SET password = ? WHERE id = ?", [upgradedHash, user.id]);
+        }
+      }
+
+      if (!passwordValid) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
       

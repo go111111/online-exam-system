@@ -1,5 +1,6 @@
 import { createApp, ref } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
+import axios from 'axios';
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
 import App from './App.vue';
@@ -39,6 +40,9 @@ router.beforeEach((to, _from) => {
 });
 
 const app = createApp(App);
+const API_BASE_URL = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 const auth = {
   user: ref(JSON.parse(localStorage.getItem('user') || 'null')),
@@ -57,28 +61,49 @@ const auth = {
   }
 };
 
+const axiosInstance = axios.create({
+  // Empty baseURL works with Vite /api proxy in development.
+  baseURL: API_BASE_URL,
+});
+
+axiosInstance.interceptors.request.use((config) => {
+  const token = auth.token.value;
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const errorMessage =
+      error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      error?.message ||
+      'Request failed';
+    return Promise.reject(new Error(errorMessage));
+  }
+);
+
 const api = {
-  async request(url: string, options: any = {}) {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(auth.token.value ? { 'Authorization': `Bearer ${auth.token.value as string}` } : {}),
-      ...options.headers,
-    };
-    const res = await fetch(url, { ...options, headers });
-    if (!res.ok) {
-      try {
-        const err = await res.json();
-        throw new Error(err.error || `HTTP ${res.status}`);
-      } catch {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    }
-    return res.json();
+  async get(url: string, config: any = {}) {
+    const res = await axiosInstance.get(url, config);
+    return res.data;
   },
-  get(url: string) { return this.request(url); },
-  post(url: string, data: any) { return this.request(url, { method: 'POST', body: JSON.stringify(data) }); },
-  put(url: string, data: any) { return this.request(url, { method: 'PUT', body: JSON.stringify(data) }); },
-  delete(url: string) { return this.request(url, { method: 'DELETE' }); },
+  async post(url: string, data: any, config: any = {}) {
+    const res = await axiosInstance.post(url, data, config);
+    return res.data;
+  },
+  async put(url: string, data: any, config: any = {}) {
+    const res = await axiosInstance.put(url, data, config);
+    return res.data;
+  },
+  async delete(url: string, config: any = {}) {
+    const res = await axiosInstance.delete(url, config);
+    return res.data;
+  },
 };
 
 app.provide('auth', auth);

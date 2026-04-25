@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, provide, inject, watch } from 'vue';
-import { useRouter, useRoute, RouterView, RouterLink } from 'vue-router';
+import { inject } from 'vue';
+import { RouterView, RouterLink } from 'vue-router';
 import { 
   LogOut, 
   User, 
@@ -22,66 +22,9 @@ import {
 } from 'lucide-vue-next';
 import NotificationCenter from './components/NotificationCenter.vue';
 
-// --- Auth Store ---
-const user = ref(JSON.parse(localStorage.getItem('user') || 'null'));
-const token = ref(localStorage.getItem('token'));
-
-const login = (userData: any, userToken: string) => {
-  user.value = userData;
-  token.value = userToken;
-  localStorage.setItem('user', JSON.stringify(userData));
-  localStorage.setItem('token', userToken);
-};
-
-const logout = () => {
-  user.value = null;
-  token.value = null;
-  localStorage.removeItem('user');
-  localStorage.removeItem('token');
-};
-
-provide('auth', { user, token, login, logout });
-
-// --- API Helper ---
-const api = {
-  get: async (url: string) => {
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token.value}` }
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  },
-  post: async (url: string, data: any) => {
-    const headers: any = { 'Content-Type': 'application/json' };
-    if (token.value) headers['Authorization'] = `Bearer ${token.value}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  },
-  put: async (url: string, data: any) => {
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  },
-  delete: async (url: string) => {
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token.value}` }
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  }
-};
-
-provide('api', api);
+const auth = inject<any>('auth');
+const user = auth.user;
+const logout = auth.logout;
 </script>
 
 <template>

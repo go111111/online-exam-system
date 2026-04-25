@@ -49,6 +49,22 @@ const rules = {
 };
 
 const formRef = ref();
+const REMEMBER_EMAIL_COOKIE_KEY = 'rememberEmail';
+const REMEMBER_EMAIL_COOKIE_DAYS = 30;
+
+const setCookie = (key: string, value: string, days: number) => {
+  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+};
+
+const getCookie = (key: string) => {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${key}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : '';
+};
+
+const deleteCookie = (key: string) => {
+  document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+};
 
 const handleLogin = async () => {
   if (!formRef.value) return;
@@ -64,11 +80,11 @@ const handleLogin = async () => {
     });
     auth.login(data.user, data.token);
     
-    // 保存记住我的状态
+    // 保存记住我的状态（仅保存邮箱到 Cookie）
     if (rememberMe.value) {
-      localStorage.setItem('rememberEmail', email.value.toLowerCase());
+      setCookie(REMEMBER_EMAIL_COOKIE_KEY, email.value.toLowerCase(), REMEMBER_EMAIL_COOKIE_DAYS);
     } else {
-      localStorage.removeItem('rememberEmail');
+      deleteCookie(REMEMBER_EMAIL_COOKIE_KEY);
     }
 
     ElMessage.success('登录成功');
@@ -93,7 +109,9 @@ const goToRegister = () => {
 
 // 加载记住的邮箱
 const loadRememberedEmail = () => {
-  const remembered = localStorage.getItem('rememberEmail');
+  // 清理旧逻辑遗留，避免与 Cookie 逻辑冲突
+  localStorage.removeItem('rememberEmail');
+  const remembered = getCookie(REMEMBER_EMAIL_COOKIE_KEY);
   if (remembered) {
     email.value = remembered;
     rememberMe.value = true;
@@ -121,11 +139,14 @@ loadRememberedEmail();
           ref="formRef"
           :model="{ email, password }"
           :rules="rules"
+          label-width="136px"
+          label-position="right"
+          autocomplete="off"
           @submit.prevent="handleLogin"
           class="space-y-5"
         >
           <!-- 邮箱字段 -->
-          <el-form-item prop="email">
+          <el-form-item prop="email" class="aligned-form-item">
             <template #label>
               <div class="flex items-center text-sm font-semibold text-gray-900">
                 <Mail class="w-4 h-4 mr-2 text-indigo-600" />
@@ -135,18 +156,21 @@ loadRememberedEmail();
             <el-input
               v-model="email"
               type="email"
+              name="login_email_input"
+              autocomplete="off"
               placeholder="例如：123456@qq.com"
               :disabled="loading"
               clearable
+              size="large"
               class="login-input"
             />
-            <div class="mt-2 text-xs text-gray-500">
+            <div class="field-tip">
               💡 请输入您的QQ邮箱地址
             </div>
           </el-form-item>
 
           <!-- 密码字段 -->
-          <el-form-item prop="password">
+          <el-form-item prop="password" class="aligned-form-item">
             <template #label>
               <div class="flex items-center text-sm font-semibold text-gray-900">
                 <Lock class="w-4 h-4 mr-2 text-indigo-600" />
@@ -156,11 +180,17 @@ loadRememberedEmail();
             <el-input
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
+              name="login_password_input"
+              autocomplete="new-password"
               placeholder="请输入密码"
               :disabled="loading"
-              class="login-input password-input"
+              size="large"
+              class="login-input"
               show-password
             />
+            <div class="field-tip">
+              📝 请输入6-20位登录密码
+            </div>
           </el-form-item>
 
           <!-- 记住我和忘记密码 -->
@@ -204,16 +234,7 @@ loadRememberedEmail();
         </div>
       </div>
 
-      <!-- 底部提示 -->
-      <div class="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 text-center">
-        <p class="text-sm text-blue-900 font-medium">
-          👨‍💼 管理员演示账号
-        </p>
-        <p class="text-xs text-blue-700 mt-2">
-          邮箱：1776866817@qq.com<br>
-          密码：jungle123
-        </p>
-      </div>
+      
     </div>
   </div>
 </template>
@@ -223,6 +244,7 @@ loadRememberedEmail();
   background-color: #f3f4f6;
   border-color: #e5e7eb;
   transition: all 0.3s ease;
+  min-height: 44px;
 }
 
 :deep(.login-input .el-input__wrapper:hover) {
@@ -249,7 +271,38 @@ loadRememberedEmail();
   color: #666666;
   font-size: 0.875rem;
 }
-.password-input{
-  margin-left: 24px;
+
+:deep(.aligned-form-item .el-form-item__label) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 44px;
+  white-space: nowrap;
+  line-height: 1.1;
+  padding-right: 10px;
+  margin-bottom: 0;
+}
+
+:deep(.aligned-form-item.is-required .el-form-item__label::before) {
+  margin-right: 2px;
+}
+
+:deep(.aligned-form-item .el-form-item__label > div) {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  white-space: nowrap;
+}
+
+:deep(.aligned-form-item .el-form-item__label-wrap) {
+  display: flex;
+  align-items: center;
+}
+
+.field-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.2;
 }
 </style>

@@ -112,11 +112,14 @@ const goToLogin = () => {
           ref="formRef"
           :model="{ email, password, confirmPassword }"
           :rules="rules"
+          label-width="136px"
+          label-position="right"
+          autocomplete="off"
           @submit.prevent="handleRegister"
           class="space-y-5"
         >
           <!-- 邮箱字段 -->
-          <el-form-item prop="email">
+          <el-form-item prop="email" class="aligned-form-item">
             <template #label>
               <div class="flex items-center text-sm font-semibold text-gray-900">
                 <Mail class="w-4 h-4 mr-2 text-indigo-600" />
@@ -126,18 +129,21 @@ const goToLogin = () => {
             <el-input
               v-model="email"
               type="email"
+              name="register_email_input"
+              autocomplete="off"
               placeholder="例如：123456@qq.com"
               :disabled="loading"
               clearable
+              size="large"
               class="register-input"
             />
-            <div class="mt-2 text-xs text-gray-500">
+            <div class="field-tip">
               💡 提示：请输入有效的QQ邮箱地址
             </div>
           </el-form-item>
 
           <!-- 密码字段 -->
-          <el-form-item prop="password">
+          <el-form-item prop="password" class="aligned-form-item">
             <template #label>
               <div class="flex items-center text-sm font-semibold text-gray-900">
                 <Lock class="w-4 h-4 mr-2 text-indigo-600" />
@@ -147,18 +153,21 @@ const goToLogin = () => {
             <el-input
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
+              name="register_password_input"
+              autocomplete="new-password"
               placeholder="6-20个字符"
               :disabled="loading"
+              size="large"
               class="register-input"
               show-password
             />
-            <div class="mt-2 text-xs text-gray-500">
+            <div class="field-tip">
               📝 密码需要6-20个字符
             </div>
           </el-form-item>
 
           <!-- 确认密码字段 -->
-          <el-form-item prop="confirmPassword">
+          <el-form-item prop="confirmPassword" class="aligned-form-item">
             <template #label>
               <div class="flex items-center text-sm font-semibold text-gray-900">
                 <Lock class="w-4 h-4 mr-2 text-indigo-600" />
@@ -168,11 +177,17 @@ const goToLogin = () => {
             <el-input
               v-model="confirmPassword"
               :type="showConfirmPassword ? 'text' : 'password'"
+              name="register_confirm_password_input"
+              autocomplete="new-password"
               placeholder="请再次输入密码"
               :disabled="loading"
+              size="large"
               class="register-input"
               show-password
             />
+            <div class="field-tip">
+              ✅ 请与上方密码保持一致
+            </div>
           </el-form-item>
 
           <!-- 注册按钮 -->
@@ -226,6 +241,7 @@ const goToLogin = () => {
   background-color: #f3f4f6;
   border-color: #e5e7eb;
   transition: all 0.3s ease;
+  min-height: 44px;
 }
 
 :deep(.register-input .el-input__wrapper:hover) {
@@ -246,5 +262,39 @@ const goToLogin = () => {
 
 :deep(.el-button--primary:hover) {
   background: linear-gradient(135deg, #4338ca 0%, #7e22ce 100%);
+}
+
+:deep(.aligned-form-item .el-form-item__label) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 44px;
+  white-space: nowrap;
+  line-height: 1.1;
+  padding-right: 10px;
+  margin-bottom: 0;
+}
+
+:deep(.aligned-form-item.is-required .el-form-item__label::before) {
+  margin-right: 2px;
+}
+
+:deep(.aligned-form-item .el-form-item__label > div) {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  white-space: nowrap;
+}
+
+:deep(.aligned-form-item .el-form-item__label-wrap) {
+  display: flex;
+  align-items: center;
+}
+
+.field-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.2;
 }
 </style>
