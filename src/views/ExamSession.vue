@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Timer } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
+import AnswerSubmitter from '@/components/AnswerSubmitter.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,6 +20,7 @@ const violationCount = ref(0);
 const maxViolations = 3;
 const warningMessage = ref('');
 const infoMessage = ref('');
+const submittingQuestions = ref<Set<number>>(new Set());
 
 onMounted(async () => {
   try {
@@ -118,6 +120,47 @@ const handleManualSubmit = async () => {
   await handleSubmit(false);
 };
 
+const handleAnswerSubmit = async (data: any) => {
+  const { questionId, answerText, file, drawingData, submissionType } = data;
+  
+  submittingQuestions.value.add(questionId);
+  
+  try {
+    if (submissionType === 'text') {
+      // 普通文本答案
+      answers.value[questionId] = answerText;
+    } else if (submissionType === 'file' || submissionType === 'canvas') {
+      // 文件上传或绘图
+      const formData = new FormData();
+      formData.append('questionId', String(questionId));
+      formData.append('answerText', answerText);
+      
+      if (file) {
+        formData.append('file', file);
+      }
+      
+      if (drawingData) {
+        formData.append('drawingData', drawingData);
+      }
+      
+      await api.post(`/api/exams/${id}/submit-answer`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      answers.value[questionId] = '已提交';
+    }
+    
+    infoMessage.value = `题目 ${data.questionId} 答案已保存`;
+    setTimeout(() => {
+      infoMessage.value = '';
+    }, 2000);
+  } catch (err: any) {
+    alert('答案保存失败: ' + err.message);
+  } finally {
+    submittingQuestions.value.delete(questionId);
+  }
+};
+
 const clearWarning = () => {
   warningMessage.value = '';
 };
@@ -177,10 +220,19 @@ const formatTime = (seconds: number) => {
           <span class="bg-indigo-600 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold mr-4 shrink-0">
             {{ idx + 1 }}
           </span>
-          <div class="space-y-1">
-            <span class="text-xs font-bold text-indigo-500 uppercase tracking-widest">
-              {{ q.type === 'choice' ? '单选题' : q.type === 'fill' ? '填空题' : '简答题' }}
-            </span>
+          <div class="space-y-1 flex-1">
+            <div class="flex items-center gap-2">
+              <span :class="cn(
+                'text-xs font-bold uppercase tracking-widest px-2 py-1 rounded-full',
+                q.type === 'choice' ? 'bg-blue-100 text-blue-700' :
+                q.type === 'fill' ? 'bg-green-100 text-green-700' :
+                q.type === 'drawing' ? 'bg-purple-100 text-purple-700' :
+                'bg-orange-100 text-orange-700'
+              )">
+                {{ q.type === 'choice' ? '单选题' : q.type === 'fill' ? '填空题' : q.type === 'drawing' ? '绘图题' : '简答题' }}
+              </span>
+              <span class="text-xs text-gray-500 font-semibold">{{ q.score }} 分</span>
+            </div>
             <p class="text-lg text-gray-900 font-medium leading-relaxed">{{ q.content }}</p>
           </div>
         </div>
@@ -198,7 +250,7 @@ const formatTime = (seconds: number) => {
             )"
           >
             <div :class="cn(
-              'w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center',
+              'w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center shrink-0',
               answers[q.id] === opt ? 'border-indigo-600' : 'border-gray-300'
             )">
               <div v-if="answers[q.id] === opt" class="w-2.5 h-2.5 bg-indigo-600 rounded-full" />
@@ -207,21 +259,35 @@ const formatTime = (seconds: number) => {
           </button>
         </div>
 
-        <input 
-          v-else-if="q.type === 'fill'"
-          type="text"
-          v-model="answers[q.id]"
-          class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-          placeholder="请输入答案..."
-        />
+        <!-- 填空题 -->
+        <div v-else-if="q.type === 'fill'">
+          <input 
+            type="text"
+            v-model="answers[q.id]"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="请输入答案..."
+          />
+        </div>
 
-        <textarea 
-          v-else-if="q.type === 'text'"
-          rows="5"
-          v-model="answers[q.id]"
-          class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-          placeholder="请输入详细回答..."
-        />
+        <!-- 简答题 -->
+        <div v-else-if="q.type === 'text'">
+          <textarea 
+            rows="5"
+            v-model="answers[q.id]"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+            placeholder="请输入详细回答..."
+          />
+        </div>
+
+        <!-- 绘图题 -->
+        <div v-else-if="q.type === 'drawing'">
+          <AnswerSubmitter 
+            :questionId="q.id"
+            :questionType="q.type"
+            :disabled="submittingQuestions.has(q.id)"
+            @submit-answer="handleAnswerSubmit"
+          />
+        </div>
       </div>
     </div>
   </div>

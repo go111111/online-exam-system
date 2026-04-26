@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
 import { ChevronRight, AlertTriangle, CheckCircle } from 'lucide-vue-next';
+import { RouterLink } from 'vue-router';
 
 const results = ref<any[]>([]);
 const api = inject<any>('api');

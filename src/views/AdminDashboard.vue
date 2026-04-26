@@ -2,6 +2,7 @@
 import { ref, onMounted, inject } from 'vue';
 import { Plus, BarChart, Edit, Trash2, X, Bell } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
+import { RouterLink } from 'vue-router';
 
 const exams = ref<any[]>([]);
 const showAdd = ref(false);

@@ -8,11 +8,43 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import cors from "cors";
 import dotenv from "dotenv";
+import multer from "multer";
+import fs from "fs";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 配置文件上传目录
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// 配置 multer 用于文件上传
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    // 只允许图片格式
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('只支持图片格式的文件'));
+    }
+  }
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || "default_secret_key_12345";
 
@@ -153,7 +185,27 @@ async function initDB() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         submission_id INTEGER,
         question_id INTEGER,
-        student_answer TEXT
+        student_answer TEXT,
+        answer_image_path TEXT,
+        answer_image_base64 TEXT,
+        submission_type TEXT DEFAULT 'text'
+      );
+
+      CREATE TABLE IF NOT EXISTS answer_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        answer_id INTEGER,
+        file_name TEXT,
+        file_path TEXT,
+        file_size INTEGER,
+        file_type TEXT,
+        upload_time DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS drawing_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        answer_id INTEGER UNIQUE,
+        canvas_json TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
       
       CREATE TABLE IF NOT EXISTS notifications (
@@ -212,8 +264,23 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(cors());
+  app.use(cors({
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    credentials: true,
+    maxAge: 86400
+  }));
+  
+  app.options('*', cors({
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    credentials: true
+  }));
+  
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
@@ -347,6 +414,8 @@ async function startServer() {
           qq.type = 'fill';
         } else if (qq.type === 'short_answer') {
           qq.type = 'text';
+        } else if (qq.type === 'drawing') {
+          qq.type = 'drawing';
         }
         delete qq.answer;
         return qq;
@@ -404,7 +473,7 @@ async function startServer() {
       // Save answers
       for (const [questionId, studentAnswer] of Object.entries(answers)) {
         await query(
-          `INSERT INTO answers (submission_id, question_id, student_answer) VALUES (?, ?, ?)`,
+          `INSERT INTO answers (submission_id, question_id, student_answer, submission_type) VALUES (?, ?, ?, 'text')`,
           [submissionId, questionId, studentAnswer]
         );
       }
@@ -414,6 +483,195 @@ async function startServer() {
       console.error('Submit exam error:', e.message);
       res.status(500).json({ error: "Failed to submit exam" });
     }
+  });
+
+  // Submit exam with file upload (for drawing or image answers)
+  app.post("/api/exams/:id/submit-answer", authenticateToken, upload.single('file'), async (req, res) => {
+    const { id } = req.params;
+    const { questionId, answerText, drawingData } = req.body;
+    const userId = (req as any).user.id;
+
+    try {
+      if (!questionId) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(400).json({ error: "Missing question ID" });
+      }
+
+      // 获取或创建提交记录
+      let existing = await query(
+        `SELECT id FROM submissions WHERE user_id = ? AND exam_id = ? LIMIT 1`,
+        [userId, id]
+      );
+      let submissionId: number;
+
+      if (existing) {
+        const existingSub = Array.isArray(existing) ? existing[0] : existing;
+        submissionId = existingSub.id;
+      } else {
+        const result = await query(
+          `INSERT INTO submissions (user_id, exam_id, status) VALUES (?, ?, 'submitted')`,
+          [userId, id]
+        );
+        submissionId = isMySQL ? (result as any).insertId : (result as any).insertId;
+      }
+
+      // 检查是否已存在该问题的答案
+      const existingAnswer = await query(
+        `SELECT id FROM answers WHERE submission_id = ? AND question_id = ? LIMIT 1`,
+        [submissionId, questionId]
+      );
+
+      let answerId: number;
+
+      if (existingAnswer) {
+        const ea = Array.isArray(existingAnswer) ? existingAnswer[0] : existingAnswer;
+        answerId = ea.id;
+        // 删除旧的文件记录
+        const oldFiles = await query(
+          `SELECT file_path FROM answer_files WHERE answer_id = ?`,
+          [answerId]
+        );
+        const oldFileList = Array.isArray(oldFiles) ? oldFiles : (oldFiles ? [oldFiles] : []);
+        for (const oldFile of oldFileList) {
+          try {
+            fs.unlinkSync(oldFile.file_path);
+          } catch (e) {
+            console.error('Failed to delete old file:', e);
+          }
+        }
+        await query(`DELETE FROM answer_files WHERE answer_id = ?`, [answerId]);
+        
+        // 更新答案
+        const submissionType = req.file ? 'file' : (drawingData ? 'canvas' : 'text');
+        await query(
+          `UPDATE answers SET student_answer = ?, answer_image_path = ?, submission_type = ? WHERE id = ?`,
+          [answerText || '', req.file ? req.file.filename : null, submissionType, answerId]
+        );
+      } else {
+        // 创建新答案
+        const submissionType = req.file ? 'file' : (drawingData ? 'canvas' : 'text');
+        const result = await query(
+          `INSERT INTO answers (submission_id, question_id, student_answer, answer_image_path, submission_type) VALUES (?, ?, ?, ?, ?)`,
+          [submissionId, questionId, answerText || '', req.file ? req.file.filename : null, submissionType]
+        );
+        answerId = isMySQL ? (result as any).insertId : (result as any).insertId;
+      }
+
+      // 保存文件信息
+      if (req.file) {
+        await query(
+          `INSERT INTO answer_files (answer_id, file_name, file_path, file_size, file_type) VALUES (?, ?, ?, ?, ?)`,
+          [answerId, req.file.originalname, req.file.path, req.file.size, req.file.mimetype]
+        );
+      }
+
+      // 保存绘图数据
+      if (drawingData) {
+        const existingDrawing = await query(
+          `SELECT id FROM drawing_data WHERE answer_id = ? LIMIT 1`,
+          [answerId]
+        );
+
+        if (existingDrawing) {
+          const ed = Array.isArray(existingDrawing) ? existingDrawing[0] : existingDrawing;
+          await query(
+            `UPDATE drawing_data SET canvas_json = ? WHERE answer_id = ?`,
+            [drawingData, answerId]
+          );
+        } else {
+          await query(
+            `INSERT INTO drawing_data (answer_id, canvas_json) VALUES (?, ?)`,
+            [answerId, drawingData]
+          );
+        }
+      }
+
+      res.json({ id: answerId, submissionId });
+    } catch (e: any) {
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (err) {
+          console.error('Failed to delete uploaded file:', err);
+        }
+      }
+      console.error('Submit answer error:', e.message);
+      res.status(500).json({ error: "Failed to submit answer" });
+    }
+  });
+
+  // Get submission answers (with files and drawing data)
+  app.get("/api/exams/:id/submission/answers", authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    const userId = (req as any).user.id;
+
+    try {
+      const submission = await query(
+        `SELECT id FROM submissions WHERE user_id = ? AND exam_id = ? LIMIT 1`,
+        [userId, id]
+      );
+      
+      if (!submission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+
+      const submissionId = Array.isArray(submission) ? submission[0].id : submission.id;
+
+      const answers = await query(
+        `SELECT a.id, a.question_id, a.student_answer, a.submission_type, a.answer_image_path
+         FROM answers a
+         WHERE a.submission_id = ?`,
+        [submissionId]
+      );
+
+      const answersList = Array.isArray(answers) ? answers : (answers ? [answers] : []);
+      
+      // 为每个答案获取文件和绘图数据
+      const enrichedAnswers = await Promise.all(answersList.map(async (ans: any) => {
+        const files = await query(
+          `SELECT id, file_name, file_path, file_size FROM answer_files WHERE answer_id = ?`,
+          [ans.id]
+        );
+
+        const drawing = await query(
+          `SELECT canvas_json FROM drawing_data WHERE answer_id = ? LIMIT 1`,
+          [ans.id]
+        );
+
+        const fileList = Array.isArray(files) ? files : (files ? [files] : []);
+        const drawingData = Array.isArray(drawing) ? drawing[0] : drawing;
+
+        return {
+          ...ans,
+          files: fileList,
+          drawing: drawingData?.canvas_json || null
+        };
+      }));
+
+      res.json(enrichedAnswers);
+    } catch (e: any) {
+      console.error('Fetch submission answers error:', e.message);
+      res.status(500).json({ error: "Failed to fetch submission answers" });
+    }
+  });
+
+  // Get uploaded file
+  app.get("/api/uploads/:filename", (req, res) => {
+    const { filename } = req.params;
+    const filePath = path.join(uploadDir, filename);
+
+    // 安全性检查：确保文件在 uploads 目录内
+    if (!path.resolve(filePath).startsWith(path.resolve(uploadDir))) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    res.sendFile(filePath);
   });
 
   // Get admin exams
@@ -430,6 +688,7 @@ async function startServer() {
   // Create exam
   app.post("/api/admin/exams", authenticateToken, isAdmin, async (req, res) => {
     const { title, description, start_time, end_time, duration_minutes, status } = req.body;
+    const userId = (req as any).user.id;
 
     try {
       if (!title || !start_time || !end_time) {
@@ -437,8 +696,8 @@ async function startServer() {
       }
 
       const result = await query(
-        `INSERT INTO exams (title, description, start_time, end_time, duration_minutes, status) VALUES (?, ?, ?, ?, ?, ?)`,
-        [title, description, start_time, end_time, duration_minutes || 60, status || 'published']
+        `INSERT INTO exams (title, description, start_time, end_time, duration_minutes, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [title, description, start_time, end_time, duration_minutes || 60, status || 'published', userId]
       );
       const id = isMySQL ? (result as any).insertId : (result as any).insertId;
       res.json({ id });
@@ -462,6 +721,7 @@ async function startServer() {
         if (qq.type === 'single_choice') qq.type = 'choice';
         else if (qq.type === 'fill_blank') qq.type = 'fill';
         else if (qq.type === 'short_answer') qq.type = 'text';
+        else if (qq.type === 'drawing') qq.type = 'drawing';
         return qq;
       });
       
@@ -478,7 +738,7 @@ async function startServer() {
     const { type, content, options, answer, score = 5 } = req.body;
     
     try {
-      if (!type || !content || !answer) {
+      if (!type || !content) {
         return res.status(400).json({ error: "Missing required question fields" });
       }
 
@@ -487,11 +747,18 @@ async function startServer() {
         questionType = 'single_choice';
       } else if (type === 'fill') {
         questionType = 'fill_blank';
+      } else if (type === 'drawing') {
+        questionType = 'drawing';
+      } else if (type === 'text') {
+        questionType = 'short_answer';
       }
+
+      // 画图题不需要 correct_answer，因为需要手动评分
+      const finalAnswer = questionType === 'drawing' ? '' : answer;
 
       const result = await query(
         `INSERT INTO questions (exam_id, question_type, content, score, correct_answer, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, questionType, content, score, answer, 0]
+        [id, questionType, content, score, finalAnswer, 0]
       );
       const questionId = isMySQL ? (result as any).insertId : (result as any).insertId;
 
@@ -578,7 +845,7 @@ async function startServer() {
     const { type, content, options, answer, score = 5 } = req.body;
     
     try {
-      if (!type || !content || !answer) {
+      if (!type || !content) {
         return res.status(400).json({ error: "Missing required question fields" });
       }
 
@@ -587,11 +854,16 @@ async function startServer() {
         questionType = 'single_choice';
       } else if (type === 'fill') {
         questionType = 'fill_blank';
+      } else if (type === 'drawing') {
+        questionType = 'drawing';
       }
+
+      // 画图题不需要 correct_answer
+      const finalAnswer = questionType === 'drawing' ? '' : answer;
 
       await query(
         `UPDATE questions SET question_type = ?, content = ?, correct_answer = ?, score = ? WHERE id = ? AND exam_id = ?`,
-        [questionType, content, answer, score, qid, id]
+        [questionType, content, finalAnswer, score, qid, id]
       );
       
       res.json({ id: qid });

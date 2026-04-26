@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject } from 'vue';
-import { RouterView, RouterLink } from 'vue-router';
+import { RouterView, RouterLink, useRouter } from 'vue-router';
 import { 
   LogOut, 
   User, 
@@ -24,7 +24,14 @@ import NotificationCenter from './components/NotificationCenter.vue';
 
 const auth = inject<any>('auth');
 const user = auth.user;
-const logout = auth.logout;
+const router = useRouter();
+
+const handleLogout = () => {
+  auth.logout();
+  setTimeout(() => {
+    router.push('/login');
+  }, 100);
+};
 </script>
 
 <template>
@@ -50,7 +57,7 @@ const logout = auth.logout;
                 <span class="text-sm font-medium text-gray-700">{{ user.email }}</span>
               </div>
               <button 
-                @click="logout(); $router.push('/login')"
+                @click="handleLogout"
                 class="p-2 text-gray-400 hover:text-red-500 transition-colors"
               >
                 <LogOut class="w-5 h-5" />

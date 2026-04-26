@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
 import { FileText, Clock, Timer, ChevronRight } from 'lucide-vue-next';
-import { useRouter } from 'vue-router';
+import { useRouter, RouterLink } from 'vue-router';
 
 const router = useRouter();
 const exams = ref<any[]>([]);
