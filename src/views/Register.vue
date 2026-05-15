@@ -2,26 +2,21 @@
 import { ref, inject } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { Mail, Lock } from 'lucide-vue-next';
 
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const loading = ref(false);
-const showPassword = ref(false);
-const showConfirmPassword = ref(false);
 const api = inject<any>('api');
 const router = useRouter();
 
-// 表单相关
 const formRef = ref();
 
-// 验证QQ邮箱格式
 const isValidQQEmail = (e: string) => /^[0-9]+@qq\.com$/.test(e.toLowerCase());
 
-// 验证密码长度
 const isValidPassword = (p: string) => p.length >= 6 && p.length <= 20;
 
-// 表单验证规则
 const rules = {
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
@@ -77,7 +72,6 @@ const handleRegister = async () => {
       password: password.value,
     });
     ElMessage.success('注册成功！请用邮箱和密码登录');
-    // 注册成功后跳转到登录页
     setTimeout(() => {
       router.push('/login');
     }, 1500);
@@ -95,19 +89,51 @@ const goToLogin = () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-md">
-      <!-- 顶部装饰 -->
-      <div class="text-center mb-12">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full shadow-lg mb-4">
-          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-        <h1 class="text-4xl font-bold text-gray-900 mb-2">创建账户</h1>
-        <p class="text-gray-600">加入在线考试系统，开始学习之旅</p>
+  <div class="min-h-screen bg-white flex">
+    <div class="hidden lg:flex lg:w-1/2 bg-black-700 relative overflow-hidden">
+      <div class="absolute inset-0">
+        <div class="absolute top-20 left-20 w-64 h-64 border border-gold-300/20"></div>
+        <div class="absolute top-40 right-16 w-48 h-48 border border-gold-300/10"></div>
+        <div class="absolute bottom-32 left-32 w-96 h-96 border border-gold-300/5"></div>
+        <div class="absolute bottom-20 right-24 w-32 h-32 border border-gold-300/15"></div>
       </div>
+      
+      <div class="relative z-10 flex flex-col justify-center px-16">
+        <div class="mb-8">
+          <div class="w-16 h-0.5 bg-gold-300 mb-6"></div>
+          <h1 class="font-display text-5xl text-white mb-4 leading-tight">
+            在线考试系统
+          </h1>
+          <p class="text-black-300 text-lg font-light tracking-wide">
+            Online Examination System
+          </p>
+        </div>
+        
+        <div class="space-y-6 text-black-400">
+          <div class="flex items-start gap-4">
+            <div class="w-2 h-2 bg-gold-300 mt-2 flex-shrink-0"></div>
+            <p class="text-sm">安全可靠的在线考试平台</p>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-2 h-2 bg-gold-300 mt-2 flex-shrink-0"></div>
+            <p class="text-sm">实时监考与防作弊机制</p>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-2 h-2 bg-gold-300 mt-2 flex-shrink-0"></div>
+            <p class="text-sm">智能评分与数据分析</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <!-- 注册表单卡片 -->
-      <div class="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-16">
+      <div class="w-full max-w-md">
+        <div class="mb-12">
+          <div class="w-12 h-0.5 bg-gold-300 mb-6"></div>
+          <h2 class="font-display text-4xl text-black-700 mb-2">创建账户</h2>
+          <p class="text-black-400">加入在线考试系统，开始学习之旅</p>
+        </div>
+
         <el-form
           ref="formRef"
           :model="{ email, password, confirmPassword }"
@@ -116,13 +142,12 @@ const goToLogin = () => {
           label-position="right"
           autocomplete="off"
           @submit.prevent="handleRegister"
-          class="space-y-5"
+          class="space-y-6"
         >
-          <!-- 邮箱字段 -->
           <el-form-item prop="email" class="aligned-form-item">
             <template #label>
-              <div class="flex items-center text-sm font-semibold text-gray-900">
-                <Mail class="w-4 h-4 mr-2 text-indigo-600" />
+              <div class="flex items-center text-sm font-semibold text-black-600">
+                <Mail class="w-4 h-4 mr-2 text-gold-300" />
                 QQ邮箱
               </div>
             </template>
@@ -138,21 +163,20 @@ const goToLogin = () => {
               class="register-input"
             />
             <div class="field-tip">
-              💡 提示：请输入有效的QQ邮箱地址
+              请输入有效的QQ邮箱地址
             </div>
           </el-form-item>
 
-          <!-- 密码字段 -->
           <el-form-item prop="password" class="aligned-form-item">
             <template #label>
-              <div class="flex items-center text-sm font-semibold text-gray-900">
-                <Lock class="w-4 h-4 mr-2 text-indigo-600" />
+              <div class="flex items-center text-sm font-semibold text-black-600">
+                <Lock class="w-4 h-4 mr-2 text-gold-300" />
                 设置密码
               </div>
             </template>
             <el-input
               v-model="password"
-              :type="showPassword ? 'text' : 'password'"
+              type="password"
               name="register_password_input"
               autocomplete="new-password"
               placeholder="6-20个字符"
@@ -162,21 +186,20 @@ const goToLogin = () => {
               show-password
             />
             <div class="field-tip">
-              📝 密码需要6-20个字符
+              密码需要6-20个字符
             </div>
           </el-form-item>
 
-          <!-- 确认密码字段 -->
           <el-form-item prop="confirmPassword" class="aligned-form-item">
             <template #label>
-              <div class="flex items-center text-sm font-semibold text-gray-900">
-                <Lock class="w-4 h-4 mr-2 text-indigo-600" />
+              <div class="flex items-center text-sm font-semibold text-black-600">
+                <Lock class="w-4 h-4 mr-2 text-gold-300" />
                 再次确认密码
               </div>
             </template>
             <el-input
               v-model="confirmPassword"
-              :type="showConfirmPassword ? 'text' : 'password'"
+              type="password"
               name="register_confirm_password_input"
               autocomplete="new-password"
               placeholder="请再次输入密码"
@@ -186,51 +209,38 @@ const goToLogin = () => {
               show-password
             />
             <div class="field-tip">
-              ✅ 请与上方密码保持一致
+              请与上方密码保持一致
             </div>
           </el-form-item>
 
-          <!-- 注册按钮 -->
           <div class="pt-4">
             <el-button
               type="primary"
               @click="handleRegister"
               :loading="loading"
-              class="w-full py-3 text-lg font-bold"
+              class="w-full py-3 text-base font-bold"
             >
               {{ loading ? '正在创建账户...' : '创建账户' }}
             </el-button>
           </div>
         </el-form>
 
-        <!-- 分隔线 -->
         <div class="my-8 flex items-center">
-          <div class="flex-grow border-t border-gray-200"></div>
-          <span class="px-3 text-xs text-gray-500">或</span>
-          <div class="flex-grow border-t border-gray-200"></div>
+          <div class="flex-grow border-t border-black-100"></div>
+          <span class="px-3 text-xs text-black-400">或</span>
+          <div class="flex-grow border-t border-black-100"></div>
         </div>
 
-        <!-- 登录链接 -->
         <div class="text-center">
-          <p class="text-gray-600 text-sm">已有账户？</p>
+          <p class="text-black-400 text-sm">已有账户？</p>
           <el-button
             type="text"
             @click="goToLogin"
-            class="mt-2 text-indigo-600 hover:text-indigo-700 font-semibold"
+            class="mt-2 text-gold-600 hover:text-gold-700 font-semibold"
           >
             返回登录
           </el-button>
         </div>
-      </div>
-
-      <!-- 底部提示 -->
-      <div class="mt-8 text-center text-xs text-gray-500">
-        <p>注册即表示您同意我们的</p>
-        <p class="mt-1">
-          <a href="#" class="text-indigo-600 hover:underline">服务条款</a>
-          和
-          <a href="#" class="text-indigo-600 hover:underline">隐私政策</a>
-        </p>
       </div>
     </div>
   </div>
@@ -238,30 +248,33 @@ const goToLogin = () => {
 
 <style scoped>
 :deep(.register-input .el-input__wrapper) {
-  background-color: #f3f4f6;
-  border-color: #e5e7eb;
+  background-color: #ffffff;
+  border-color: #e5e5e5;
   transition: all 0.3s ease;
   min-height: 44px;
 }
 
 :deep(.register-input .el-input__wrapper:hover) {
-  border-color: #a5d6fd;
+  border-color: #d4af37;
   background-color: #ffffff;
 }
 
 :deep(.register-input.is-focus .el-input__wrapper) {
   background-color: #ffffff;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
 }
 
 :deep(.el-button--primary) {
-  background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
-  border: 0;
+  background-color: #111111;
+  border: 1px solid #111111;
+  color: #ffffff;
 }
 
 :deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #4338ca 0%, #7e22ce 100%);
+  background-color: #d4af37;
+  border-color: #d4af37;
+  color: #111111;
 }
 
 :deep(.aligned-form-item .el-form-item__label) {
@@ -294,7 +307,7 @@ const goToLogin = () => {
 .field-tip {
   margin-top: 8px;
   font-size: 12px;
-  color: #6b7280;
+  color: #666666;
   line-height: 1.2;
 }
 </style>

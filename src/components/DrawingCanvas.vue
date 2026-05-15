@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { ChevronDown, Download, Trash2, Undo2 } from 'lucide-vue-next';
+import { ChevronDown, Circle, Download, Eraser, Minus, PenTool, Square, Trash2, Undo2 } from 'lucide-vue-next';
 
 interface Props {
   modelValue?: string; // Base64 encoded image or canvas JSON
@@ -30,11 +30,11 @@ const lineWidth = ref(2);
 const colorPickerOpen = ref(false);
 const brushSizes = [1, 2, 3, 5, 8];
 const tools = [
-  { id: 'pen', label: '画笔', icon: '✏️' },
-  { id: 'eraser', label: '橡皮', icon: '🧹' },
-  { id: 'line', label: '直线', icon: '📏' },
-  { id: 'rectangle', label: '矩形', icon: '◻️' },
-  { id: 'circle', label: '圆形', icon: '⭕' }
+  { id: 'pen', label: '画笔', icon: PenTool },
+  { id: 'eraser', label: '橡皮', icon: Eraser },
+  { id: 'line', label: '直线', icon: Minus },
+  { id: 'rectangle', label: '矩形', icon: Square },
+  { id: 'circle', label: '圆形', icon: Circle }
 ];
 
 const currentTool = ref<string>('pen');
@@ -271,9 +271,9 @@ onMounted(initCanvas);
 </script>
 
 <template>
-  <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+  <div class="bg-white border border-black-100 overflow-hidden">
     <!-- 工具栏 -->
-    <div class="bg-gray-100 p-4 border-b border-gray-200">
+    <div class="bg-black-50 p-4 border-b border-black-100">
       <div class="flex flex-wrap gap-4 items-center">
         <!-- 工具选择 -->
         <div class="flex gap-2">
@@ -282,40 +282,40 @@ onMounted(initCanvas);
             :key="tool.id"
             @click="currentTool = tool.id"
             :class="[
-              'p-2 rounded-lg transition-colors',
+              'p-2 border transition-colors',
               currentTool === tool.id 
-                ? 'bg-indigo-600 text-white' 
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                ? 'bg-black-700 text-white border-black-700' 
+                : 'bg-white text-black-600 border-black-200 hover:border-gold-300 hover:text-gold-600'
             ]"
             :title="tool.label"
             :disabled="disabled"
           >
-            <span class="text-lg">{{ tool.icon }}</span>
+            <component :is="tool.icon" class="w-5 h-5" />
           </button>
         </div>
 
         <!-- 分隔线 -->
-        <div class="hidden md:block w-px h-8 bg-gray-300"></div>
+        <div class="hidden md:block w-px h-8 bg-black-200"></div>
 
         <!-- 笔色选择 -->
         <div class="relative">
           <button 
             @click="colorPickerOpen = !colorPickerOpen"
-            class="p-2 rounded-lg border border-gray-300 flex items-center gap-2 hover:bg-gray-50"
+            class="p-2 border border-black-200 bg-white flex items-center gap-2 hover:border-gold-300 transition-colors"
             :disabled="disabled || currentTool === 'eraser'"
           >
-            <span class="w-6 h-6 rounded border-2 border-gray-400" :style="{ backgroundColor: lineColor }"></span>
+            <span class="w-6 h-6 border border-black-300" :style="{ backgroundColor: lineColor }"></span>
             <ChevronDown class="w-4 h-4" />
           </button>
           
-          <div v-if="colorPickerOpen" class="absolute top-full mt-2 left-0 bg-white rounded-lg shadow-lg p-3 z-10">
+          <div v-if="colorPickerOpen" class="absolute top-full mt-2 left-0 bg-white border border-black-100 shadow-lg p-3 z-10">
             <div class="flex flex-wrap gap-2">
               <button 
                 v-for="color in presetColors"
                 :key="color"
                 @click="lineColor = color; colorPickerOpen = false"
-                class="w-6 h-6 rounded border-2 transition-transform hover:scale-110"
-                :class="lineColor === color ? 'border-indigo-600' : 'border-gray-300'"
+                class="w-6 h-6 border-2 transition-transform hover:scale-110"
+                :class="lineColor === color ? 'border-gold-300' : 'border-black-200'"
                 :style="{ backgroundColor: color }"
               />
             </div>
@@ -329,10 +329,10 @@ onMounted(initCanvas);
             :key="size"
             @click="lineWidth = size"
             :class="[
-              'w-8 h-8 rounded-lg border transition-colors',
+              'w-8 h-8 border transition-colors',
               lineWidth === size 
-                ? 'bg-indigo-600 text-white border-indigo-600' 
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                ? 'bg-black-700 text-white border-black-700' 
+                : 'bg-white border-black-200 text-black-600 hover:border-gold-300 hover:text-gold-600'
             ]"
             :disabled="disabled || currentTool === 'eraser'"
             :title="`笔宽: ${size}`"
@@ -345,16 +345,16 @@ onMounted(initCanvas);
         <div class="ml-auto flex gap-2">
           <button 
             @click="undo"
-            class="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            class="p-2 border border-black-200 hover:border-gold-300 hover:text-gold-600 transition-colors"
             :disabled="disabled || drawingHistory.length === 0"
             title="撤销"
           >
-            <Undo2 class="w-5 h-5 text-gray-700" />
+            <Undo2 class="w-5 h-5" />
           </button>
           
           <button 
             @click="clear"
-            class="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors text-red-600"
+            class="p-2 border border-black-200 hover:border-red-400 transition-colors text-red-600"
             :disabled="disabled"
             title="清空"
           >
@@ -363,16 +363,16 @@ onMounted(initCanvas);
           
           <button 
             @click="downloadImage"
-            class="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            class="p-2 border border-black-200 hover:border-gold-300 hover:text-gold-600 transition-colors"
             :disabled="disabled"
             title="下载"
           >
-            <Download class="w-5 h-5 text-gray-700" />
+            <Download class="w-5 h-5" />
           </button>
 
           <button 
             @click="saveDrawing"
-            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+            class="px-4 py-2 bg-black-700 text-white hover:bg-gold-300 hover:text-black-700 transition-colors font-bold uppercase tracking-wider text-sm"
             :disabled="disabled"
           >
             保存绘图
@@ -382,7 +382,7 @@ onMounted(initCanvas);
     </div>
 
     <!-- Canvas -->
-    <div class="bg-gray-50 p-4 overflow-auto" style="max-height: 700px;">
+    <div class="bg-black-50 p-4 overflow-auto" style="max-height: 700px;">
       <canvas 
         ref="canvasRef"
         :width="canvasWidth"
@@ -391,7 +391,7 @@ onMounted(initCanvas);
         @mousemove="draw"
         @mouseup="stopDrawing"
         @mouseleave="stopDrawing"
-        :class="['bg-white border-2 border-gray-300 cursor-crosshair', { 'opacity-50 cursor-not-allowed': disabled }]"
+        :class="['bg-white border border-black-200 cursor-crosshair', { 'opacity-50 cursor-not-allowed': disabled }]"
       ></canvas>
     </div>
   </div>

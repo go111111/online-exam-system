@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, inject, computed } from 'vue';
-import { Bell, X, CheckCircle, ChevronRight } from 'lucide-vue-next';
+import { Bell, X, ChevronRight } from 'lucide-vue-next';
 
 export default defineComponent({
   setup() {
@@ -32,7 +32,6 @@ export default defineComponent({
 
     onMounted(() => {
       fetchNotifications();
-      // Refresh every 30 seconds
       setInterval(fetchNotifications, 30000);
     });
 
@@ -50,62 +49,60 @@ export default defineComponent({
 
 <template>
   <div class="relative">
-    <!-- Notification Bell Button -->
     <button 
       @click="showPanel = !showPanel"
-      class="relative p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+      class="relative p-2 text-black-400 hover:text-gold-300 transition-colors"
     >
       <Bell class="w-5 h-5" />
       <span 
         v-if="unreadCount > 0"
-        class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
+        class="absolute -top-1 -right-1 bg-gold-300 text-black-700 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
       >
         {{ unreadCount > 9 ? '9+' : unreadCount }}
       </span>
     </button>
 
-    <!-- Notification Panel -->
     <div 
       v-if="showPanel"
-      class="absolute right-0 mt-2 w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 max-h-96 overflow-y-auto"
+      class="absolute right-0 mt-2 w-96 bg-white border border-black-100 z-50 max-h-96 overflow-y-auto shadow-lg"
     >
-      <div class="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
-        <h3 class="font-bold text-gray-900">通知</h3>
+      <div class="sticky top-0 bg-white border-b border-black-100 p-4 flex justify-between items-center">
+        <h3 class="font-display font-semibold text-black-700">通知</h3>
         <button 
           @click="showPanel = false"
-          class="p-1 text-gray-400 hover:text-gray-600"
+          class="p-1 text-black-400 hover:text-black-700 transition-colors"
         >
           <X class="w-4 h-4" />
         </button>
       </div>
 
-      <div v-if="notifications.length === 0" class="p-8 text-center text-gray-400">
+      <div v-if="notifications.length === 0" class="p-8 text-center text-black-400">
         <Bell class="w-8 h-8 mx-auto mb-2 opacity-50" />
         <p>暂无通知</p>
       </div>
 
-      <div v-else class="divide-y divide-gray-50">
+      <div v-else class="divide-y divide-black-50">
         <div 
           v-for="notif in notifications"
           :key="notif.id"
           :class="[
-            'p-4 hover:bg-gray-50 transition-colors cursor-pointer',
-            !notif.is_read ? 'bg-blue-50' : ''
+            'p-4 hover:bg-gold-50/30 transition-colors cursor-pointer',
+            !notif.is_read ? 'bg-black-50' : ''
           ]"
           @click="!notif.is_read && markAsRead(notif.id)"
         >
           <div class="flex items-start space-x-3">
             <div 
               :class="[
-                'w-2 h-2 rounded-full mt-2 flex-shrink-0',
-                notif.is_read ? 'bg-gray-300' : 'bg-blue-500'
+                'w-2 h-2 mt-2 flex-shrink-0',
+                notif.is_read ? 'bg-black-200' : 'bg-gold-300'
               ]"
             />
             <div class="flex-1 min-w-0">
-              <h4 class="font-medium text-gray-900 text-sm">{{ notif.title }}</h4>
-              <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ notif.content }}</p>
+              <h4 class="font-medium text-black-700 text-sm">{{ notif.title }}</h4>
+              <p class="text-xs text-black-400 mt-1 line-clamp-2">{{ notif.content }}</p>
               <div class="flex items-center justify-between mt-2">
-                <span class="text-xs text-gray-400">
+                <span class="text-xs text-black-300">
                   {{ new Date(notif.created_at).toLocaleString('zh-CN', { 
                     month: '2-digit',
                     day: '2-digit',
@@ -115,10 +112,10 @@ export default defineComponent({
                 </span>
                 <span 
                   :class="[
-                    'text-xs font-bold px-2 py-1 rounded-full',
-                    notif.type === 'exam' ? 'bg-indigo-100 text-indigo-600' :
-                    notif.type === 'announcement' ? 'bg-amber-100 text-amber-600' :
-                    'bg-gray-100 text-gray-600'
+                    'text-xs font-bold px-2 py-1 border',
+                    notif.type === 'exam' ? 'bg-black-700 text-white border-black-700' :
+                    notif.type === 'announcement' ? 'bg-gold-50 text-gold-700 border-gold-200' :
+                    'bg-black-50 text-black-600 border-black-200'
                   ]"
                 >
                   {{ notif.type === 'exam' ? '考试' : notif.type === 'announcement' ? '通知' : '系统' }}

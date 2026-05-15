@@ -11,16 +11,23 @@ const Login = () => import('./views/Login.vue');
 const Register = () => import('./views/Register.vue');
 const Dashboard = () => import('./views/Dashboard.vue');
 const ExamSession = () => import('./views/ExamSession.vue');
+const StudentResults = () => import('./views/StudentResults.vue');
 const AdminDashboard = () => import('./views/AdminDashboard.vue');
 const QuestionManager = () => import('./views/QuestionManager.vue');
 const AdminResults = () => import('./views/AdminResults.vue');
+const AdminGrading = () => import('./views/AdminGrading.vue');
+const AdminNotifications = () => import('./views/AdminNotifications.vue');
 
 const routes = [
   { path: '/login', component: Login },
   { path: '/register', component: Register },
   { path: '/', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/results', component: StudentResults, meta: { requiresAuth: true } },
+  { path: '/results/table', component: StudentResults, meta: { requiresAuth: true } },
   { path: '/exam/:id', component: ExamSession, meta: { requiresAuth: true } },
   { path: '/admin', component: AdminDashboard, meta: { requiresAuth: true, adminOnly: true } },
+  { path: '/admin/grading', component: AdminGrading, meta: { requiresAuth: true, adminOnly: true } },
+  { path: '/admin/notifications', component: AdminNotifications, meta: { requiresAuth: true, adminOnly: true } },
   { path: '/admin/exams/:id/questions', component: QuestionManager, meta: { requiresAuth: true, adminOnly: true } },
   { path: '/admin/results', component: AdminResults, meta: { requiresAuth: true, adminOnly: true } },
 ];

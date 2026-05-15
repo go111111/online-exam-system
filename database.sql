@@ -46,8 +46,9 @@ CREATE TABLE IF NOT EXISTS exam_participants (
 CREATE TABLE IF NOT EXISTS questions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     exam_id INT NOT NULL,
-    question_type ENUM('single_choice', 'multiple_choice', 'fill_blank', 'short_answer') NOT NULL,
+    question_type ENUM('single_choice', 'multiple_choice', 'fill_blank', 'short_answer', 'drawing') NOT NULL,
     content TEXT NOT NULL,
+    image_path VARCHAR(500),
     score INT NOT NULL DEFAULT 5,
     correct_answer TEXT,
     explanation TEXT,
@@ -96,9 +97,33 @@ CREATE TABLE IF NOT EXISTS answers (
     student_answer TEXT,
     is_correct BOOLEAN DEFAULT NULL,
     awarded_score DECIMAL(6,2) DEFAULT NULL,
+    answer_image_path VARCHAR(500),
+    answer_image_base64 LONGTEXT,
+    submission_type ENUM('text', 'file', 'canvas') DEFAULT 'text',
     FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
     FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
     UNIQUE KEY unique_answer (submission_id, question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS answer_files (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    answer_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size INT NOT NULL,
+    file_type VARCHAR(50),
+    upload_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (answer_id) REFERENCES answers(id) ON DELETE CASCADE,
+    INDEX idx_answer_id (answer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS drawing_data (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    answer_id INT NOT NULL,
+    canvas_json LONGTEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (answer_id) REFERENCES answers(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_answer_drawing (answer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS cheat_logs (
@@ -112,6 +137,32 @@ CREATE TABLE IF NOT EXISTS cheat_logs (
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (exam_id) REFERENCES exams(id),
     FOREIGN KEY (submission_id) REFERENCES submissions(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'announcement',
+    target_role VARCHAR(20) DEFAULT 'all',
+    exam_id INT DEFAULT NULL,
+    created_by INT DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id),
+    INDEX idx_target_role (target_role),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notification_reads (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    notification_id INT NOT NULL,
+    user_id INT NOT NULL,
+    read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_notification_read (notification_id, user_id),
+    INDEX idx_notification_id (notification_id),
+    INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. 插入默认管理员

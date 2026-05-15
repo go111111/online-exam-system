@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Upload, X, Image as ImageIcon } from 'lucide-vue-next';
+import { CheckCircle, Image as ImageIcon, PenTool, Upload, X } from 'lucide-vue-next';
 import DrawingCanvas from './DrawingCanvas.vue';
 
 interface Props {
@@ -30,8 +30,6 @@ const answer = ref<string>('');
 const uploadedFile = ref<File | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const drawingData = ref<string>('');
-const uploadProgress = ref(0);
-const isUploading = ref(false);
 const showDrawing = ref(false);
 
 const hasUploadedFile = computed(() => !!uploadedFile.value);
@@ -47,24 +45,30 @@ const fileSize = computed(() => {
 const handleFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement;
   const files = input.files;
-  
-  if (files && files.length > 0) {
-    const file = files[0];
-    
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      alert('只支持图片格式的文件');
-      return;
-    }
-    
-    // 验证文件大小 (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('文件大小不能超过10MB');
-      return;
-    }
-    
-    uploadedFile.value = file;
+
+  saveSelectedFile(files?.[0]);
+};
+
+const saveSelectedFile = (file?: File) => {
+  if (!file) return;
+
+  // 验证文件类型
+  if (!file.type.startsWith('image/')) {
+    alert('只支持图片格式的文件');
+    return;
   }
+
+  // 验证文件大小 (10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    alert('文件大小不能超过10MB');
+    return;
+  }
+
+  uploadedFile.value = file;
+};
+
+const handleDrop = (e: DragEvent) => {
+  saveSelectedFile(e.dataTransfer?.files?.[0]);
 };
 
 const triggerFileInput = () => {
@@ -89,9 +93,16 @@ const submitAnswer = async () => {
     return;
   }
 
-  if (props.questionType === 'drawing' && !drawingData.value) {
+  if (props.questionType === 'drawing' && !drawingData.value && !uploadedFile.value) {
     alert('请先绘制或上传答案');
     return;
+  }
+
+  let submissionType: 'text' | 'file' | 'canvas' = 'text';
+  if (uploadedFile.value) {
+    submissionType = 'file';
+  } else if (drawingData.value && props.questionType === 'drawing') {
+    submissionType = 'canvas';
   }
 
   const submissionData = {
@@ -99,14 +110,8 @@ const submitAnswer = async () => {
     answerText: answer.value || '',
     file: uploadedFile.value,
     drawingData: drawingData.value,
-    submissionType: 'text' as const
+    submissionType
   };
-
-  if (uploadedFile.value) {
-    submissionData.submissionType = 'file';
-  } else if (drawingData.value && props.questionType === 'drawing') {
-    submissionData.submissionType = 'canvas';
-  }
 
   emit('submit-answer', submissionData);
 };
@@ -118,7 +123,7 @@ const handleDrawingSave = (canvasJson: string) => {
 </script>
 
 <template>
-  <div class="bg-white rounded-xl border border-gray-200 p-6">
+  <div class="bg-white border border-black-100 p-6">
     <!-- 单选题 -->
     <div v-if="questionType === 'choice'" class="space-y-4">
       <div class="space-y-2">
@@ -128,7 +133,7 @@ const handleDrawingSave = (canvasJson: string) => {
       </div>
       <button 
         @click="submitAnswer"
-        class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+        class="w-full bg-black-700 text-white py-3 hover:bg-gold-300 hover:text-black-700 transition-all duration-300 font-bold uppercase tracking-wider text-sm"
         :disabled="disabled"
       >
         提交答案
@@ -140,12 +145,12 @@ const handleDrawingSave = (canvasJson: string) => {
       <textarea 
         v-model="answer"
         :placeholder="questionType === 'fill' ? '请填写答案' : '请输入答案'"
-        class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none h-24"
+        class="w-full border border-black-200 bg-white px-4 py-3 focus:border-gold-300 focus:outline-none focus:ring-1 focus:ring-gold-300 resize-none h-24 transition-all"
         :disabled="disabled"
       />
       <button 
         @click="submitAnswer"
-        class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+        class="w-full bg-black-700 text-white py-3 hover:bg-gold-300 hover:text-black-700 transition-all duration-300 font-bold uppercase tracking-wider text-sm"
         :disabled="disabled"
       >
         提交答案
@@ -155,28 +160,30 @@ const handleDrawingSave = (canvasJson: string) => {
     <!-- 绘图题 -->
     <div v-else-if="questionType === 'drawing'" class="space-y-4">
       <!-- 绘图选项卡 -->
-      <div class="flex gap-2 border-b border-gray-200">
+      <div class="flex border-b border-black-100">
         <button 
           @click="showDrawing = true"
           :class="[
-            'px-4 py-2 font-semibold border-b-2 transition-colors',
+            'inline-flex items-center px-4 py-3 font-bold border-b-2 transition-colors uppercase tracking-wider text-sm',
             showDrawing 
-              ? 'border-indigo-600 text-indigo-600' 
-              : 'border-transparent text-gray-600 hover:text-gray-900'
+              ? 'border-black-700 text-black-700' 
+              : 'border-transparent text-black-400 hover:text-gold-600'
           ]"
         >
-          📐 在线绘制
+          <PenTool class="w-4 h-4 mr-2" />
+          在线绘制
         </button>
         <button 
           @click="showDrawing = false"
           :class="[
-            'px-4 py-2 font-semibold border-b-2 transition-colors',
+            'inline-flex items-center px-4 py-3 font-bold border-b-2 transition-colors uppercase tracking-wider text-sm',
             !showDrawing 
-              ? 'border-indigo-600 text-indigo-600' 
-              : 'border-transparent text-gray-600 hover:text-gray-900'
+              ? 'border-black-700 text-black-700' 
+              : 'border-transparent text-black-400 hover:text-gold-600'
           ]"
         >
-          📤 上传图片
+          <Upload class="w-4 h-4 mr-2" />
+          上传图片
         </button>
       </div>
 
@@ -196,12 +203,12 @@ const handleDrawingSave = (canvasJson: string) => {
         <div 
           @click="triggerFileInput"
           @dragover.prevent="true"
-          @drop.prevent="(e) => handleFileSelect(e as DragEvent)"
+          @drop.prevent="handleDrop"
           :class="[
-            'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors',
+            'border-2 border-dashed p-8 text-center cursor-pointer transition-colors',
             hasUploadedFile 
-              ? 'border-green-400 bg-green-50' 
-              : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'
+              ? 'border-gold-300 bg-gold-50' 
+              : 'border-black-200 hover:border-gold-300 hover:bg-gold-50/40'
           ]"
         >
           <input 
@@ -213,12 +220,12 @@ const handleDrawingSave = (canvasJson: string) => {
           />
 
           <div v-if="hasUploadedFile" class="space-y-3">
-            <ImageIcon class="w-8 h-8 text-green-600 mx-auto" />
-            <p class="font-semibold text-gray-900">{{ fileName }}</p>
-            <p class="text-sm text-gray-600">{{ fileSize }}</p>
+            <ImageIcon class="w-8 h-8 text-gold-600 mx-auto" />
+            <p class="font-bold text-black-700">{{ fileName }}</p>
+            <p class="text-sm text-black-400">{{ fileSize }}</p>
             <button 
               @click.stop="removeFile"
-              class="inline-flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm hover:bg-red-200"
+              class="inline-flex items-center gap-2 px-3 py-1 border border-black-200 text-black-600 text-sm hover:border-gold-300 hover:text-gold-600 transition-colors"
             >
               <X class="w-4 h-4" />
               重新选择
@@ -226,21 +233,22 @@ const handleDrawingSave = (canvasJson: string) => {
           </div>
 
           <div v-else class="space-y-2">
-            <Upload class="w-8 h-8 text-gray-400 mx-auto" />
-            <p class="font-semibold text-gray-900">点击上传或拖拽图片</p>
-            <p class="text-sm text-gray-600">支持 PNG, JPG, GIF 等格式，最大 10MB</p>
+            <Upload class="w-8 h-8 text-black-300 mx-auto" />
+            <p class="font-bold text-black-700">点击上传或拖拽图片</p>
+            <p class="text-sm text-black-400">支持 PNG, JPG, GIF 等格式，最大 10MB</p>
           </div>
         </div>
 
-        <p v-if="drawingData" class="mt-3 text-sm text-green-600 flex items-center gap-2">
-          <span>✓</span> 已保存绘图数据
+        <p v-if="drawingData" class="mt-3 text-sm text-gold-700 flex items-center gap-2">
+          <CheckCircle class="w-4 h-4" />
+          已保存绘图数据
         </p>
       </div>
 
       <!-- 提交按钮 -->
       <button 
         @click="submitAnswer"
-        class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+        class="w-full bg-black-700 text-white py-3 hover:bg-gold-300 hover:text-black-700 transition-all duration-300 font-bold uppercase tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="disabled || (!showDrawing && !hasUploadedFile && !drawingData) || (showDrawing && !drawingData)"
       >
         提交答案

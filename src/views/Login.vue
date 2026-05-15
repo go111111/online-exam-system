@@ -2,6 +2,7 @@
 import { ref, inject } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { Mail, Lock, ArrowRight } from 'lucide-vue-next';
 
 const email = ref('');
 const password = ref('');
@@ -12,13 +13,9 @@ const auth = inject<any>('auth');
 const api = inject<any>('api');
 const router = useRouter();
 
-// 验证QQ邮箱格式
 const isValidQQEmail = (e: string) => /^[0-9]+@qq\.com$/.test(e.toLowerCase());
-
-// 验证密码长度
 const isValidPassword = (p: string) => p.length >= 6 && p.length <= 20;
 
-// 表单验证规则
 const rules = {
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
@@ -68,7 +65,6 @@ const deleteCookie = (key: string) => {
 
 const handleLogin = async () => {
   if (!formRef.value) return;
-
   const valid = await formRef.value.validate().catch(() => false);
   if (!valid) return;
 
@@ -80,7 +76,6 @@ const handleLogin = async () => {
     });
     auth.login(data.user, data.token);
     
-    // 保存记住我的状态（仅保存邮箱到 Cookie）
     if (rememberMe.value) {
       setCookie(REMEMBER_EMAIL_COOKIE_KEY, email.value.toLowerCase(), REMEMBER_EMAIL_COOKIE_DAYS);
     } else {
@@ -89,7 +84,6 @@ const handleLogin = async () => {
 
     ElMessage.success('登录成功');
     
-    // 管理员进入后台，普通用户进入首页
     if (data.user.role === 'admin') {
       router.push('/admin');
     } else {
@@ -107,9 +101,7 @@ const goToRegister = () => {
   router.push('/register');
 };
 
-// 加载记住的邮箱
 const loadRememberedEmail = () => {
-  // 清理旧逻辑遗留，避免与 Cookie 逻辑冲突
   localStorage.removeItem('rememberEmail');
   const remembered = getCookie(REMEMBER_EMAIL_COOKIE_KEY);
   if (remembered) {
@@ -122,35 +114,68 @@ loadRememberedEmail();
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-indigo-50 via-blue-50 to-white flex items-center justify-center p-4">
-    <div class="w-full max-w-md">
-      <!-- 顶部装饰 -->
-      <div class="text-center mb-12">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-full shadow-lg mb-4">
-          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v2a2 2 0 01-2 2H7a2 2 0 01-2-2v-2m14-4V7a2 2 0 00-2-2H7a2 2 0 00-2 2v2"/></svg>
-        </div>
-        <h1 class="text-4xl font-bold text-gray-900 mb-2">欢迎登录</h1>
-        <p class="text-gray-600">在线考试系统</p>
+  <div class="min-h-screen bg-white flex">
+    <!-- 左侧装饰面板 -->
+    <div class="hidden lg:flex lg:w-1/2 bg-black-700 relative overflow-hidden">
+      <div class="absolute inset-0">
+        <div class="absolute top-20 left-20 w-64 h-64 border border-gold-300/20"></div>
+        <div class="absolute top-40 right-16 w-48 h-48 border border-gold-300/10"></div>
+        <div class="absolute bottom-32 left-32 w-96 h-96 border border-gold-300/5"></div>
+        <div class="absolute bottom-20 right-24 w-32 h-32 border border-gold-300/15"></div>
       </div>
+      
+      <div class="relative z-10 flex flex-col justify-center px-16">
+        <div class="mb-8">
+          <div class="w-16 h-0.5 bg-gold-300 mb-6"></div>
+          <h1 class="font-display text-5xl text-white mb-4 leading-tight">
+            在线考试系统
+          </h1>
+          <p class="text-black-300 text-lg font-light tracking-wide">
+            Online Examination System
+          </p>
+        </div>
+        
+        <div class="space-y-6 text-black-400">
+          <div class="flex items-start gap-4">
+            <div class="w-2 h-2 bg-gold-300 mt-2 flex-shrink-0"></div>
+            <p class="text-sm">安全可靠的在线考试平台</p>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-2 h-2 bg-gold-300 mt-2 flex-shrink-0"></div>
+            <p class="text-sm">实时监考与防作弊机制</p>
+          </div>
+          <div class="flex items-start gap-4">
+            <div class="w-2 h-2 bg-gold-300 mt-2 flex-shrink-0"></div>
+            <p class="text-sm">智能评分与数据分析</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <!-- 登录表单卡片 -->
-      <div class="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+    <!-- 右侧登录表单 -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-16">
+      <div class="w-full max-w-md">
+        <div class="mb-12">
+          <div class="w-12 h-0.5 bg-gold-300 mb-6"></div>
+          <h2 class="font-display text-4xl text-black-700 mb-2">欢迎登录</h2>
+          <p class="text-black-400">请输入您的账户信息</p>
+        </div>
+
         <el-form
           ref="formRef"
           :model="{ email, password }"
           :rules="rules"
-          label-width="136px"
+          label-width="100px"
           label-position="right"
           autocomplete="off"
           @submit.prevent="handleLogin"
-          class="space-y-5"
+          class="space-y-6"
         >
-          <!-- 邮箱字段 -->
           <el-form-item prop="email" class="aligned-form-item">
             <template #label>
-              <div class="flex items-center text-sm font-semibold text-gray-900">
-                <Mail class="w-4 h-4 mr-2 text-indigo-600" />
-                QQ邮箱
+              <div class="flex items-center text-sm font-semibold text-black-600">
+                <Mail class="w-4 h-4 mr-2 text-gold-300" />
+                邮箱
               </div>
             </template>
             <el-input
@@ -164,16 +189,12 @@ loadRememberedEmail();
               size="large"
               class="login-input"
             />
-            <div class="field-tip">
-              💡 请输入您的QQ邮箱地址
-            </div>
           </el-form-item>
 
-          <!-- 密码字段 -->
           <el-form-item prop="password" class="aligned-form-item">
             <template #label>
-              <div class="flex items-center text-sm font-semibold text-gray-900">
-                <Lock class="w-4 h-4 mr-2 text-indigo-600" />
+              <div class="flex items-center text-sm font-semibold text-black-600">
+                <Lock class="w-4 h-4 mr-2 text-gold-300" />
                 密码
               </div>
             </template>
@@ -188,83 +209,80 @@ loadRememberedEmail();
               class="login-input"
               show-password
             />
-            <div class="field-tip">
-              📝 请输入6-20位登录密码
-            </div>
           </el-form-item>
 
-          <!-- 记住我和忘记密码 -->
           <div class="flex items-center justify-between">
             <el-checkbox v-model="rememberMe" label="记住我" />
-            <a href="#" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+            <a href="#" class="text-sm text-gold-600 hover:text-gold-700 font-medium">
               忘记密码？
             </a>
           </div>
 
-          <!-- 登录按钮 -->
           <div class="pt-4">
             <el-button
-              type="primary"
               @click="handleLogin"
               :loading="loading"
-              class="w-full py-3 text-lg font-bold"
+              class="w-full py-6 text-base font-bold login-btn"
             >
-              {{ loading ? '正在登录...' : '登录' }}
+              <span class="flex items-center justify-center gap-2">
+                {{ loading ? '正在登录...' : '登录' }}
+                <ArrowRight class="w-4 h-4" />
+              </span>
             </el-button>
           </div>
         </el-form>
 
-        <!-- 分隔线 -->
         <div class="my-8 flex items-center">
-          <div class="flex-grow border-t border-gray-200"></div>
-          <span class="px-3 text-xs text-gray-500">或</span>
-          <div class="flex-grow border-t border-gray-200"></div>
+          <div class="flex-grow border-t border-black-100"></div>
+          <span class="px-4 text-xs text-black-400 uppercase tracking-wider">或</span>
+          <div class="flex-grow border-t border-black-100"></div>
         </div>
 
-        <!-- 注册链接 -->
         <div class="text-center">
-          <p class="text-gray-600 text-sm">还没有账户？</p>
-          <el-button
-            type="text"
+          <p class="text-black-500 text-sm">还没有账户？</p>
+          <button
             @click="goToRegister"
-            class="mt-2 text-indigo-600 hover:text-indigo-700 font-semibold"
+            class="mt-2 text-gold-600 hover:text-gold-700 font-semibold border-b border-gold-300 pb-0.5 hover:border-gold-600 transition-all"
           >
             立即注册
-          </el-button>
+          </button>
         </div>
       </div>
-
-      
     </div>
   </div>
 </template>
 
 <style scoped>
 :deep(.login-input .el-input__wrapper) {
-  background-color: #f3f4f6;
-  border-color: #e5e7eb;
+  background-color: #FAFAFA;
+  border-color: #E5E5E5;
   transition: all 0.3s ease;
-  min-height: 44px;
+  min-height: 48px;
+  box-shadow: none !important;
+  border-radius: 0;
 }
 
 :deep(.login-input .el-input__wrapper:hover) {
-  border-color: #a5d6fd;
-  background-color: #ffffff;
+  border-color: #D4AF37;
+  background-color: #FFFFFF;
 }
 
 :deep(.login-input.is-focus .el-input__wrapper) {
-  background-color: #ffffff;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  background-color: #FFFFFF;
+  border-color: #D4AF37;
+  box-shadow: 0 0 0 1px #D4AF37 !important;
 }
 
-:deep(.el-button--primary) {
-  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
-  border: 0;
+:deep(.login-btn.el-button--primary) {
+  background-color: #111111;
+  border-color: #111111;
+  color: #FFFFFF;
 }
 
-:deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%);
+:deep(.login-btn.el-button--primary:hover) {
+  background-color: #D4AF37;
+  border-color: #D4AF37;
+  color: #111111;
 }
 
 :deep(.el-checkbox__label) {
@@ -272,14 +290,19 @@ loadRememberedEmail();
   font-size: 0.875rem;
 }
 
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: #D4AF37;
+  border-color: #D4AF37;
+}
+
 :deep(.aligned-form-item .el-form-item__label) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  height: 44px;
+  height: 48px;
   white-space: nowrap;
   line-height: 1.1;
-  padding-right: 10px;
+  padding-right: 12px;
   margin-bottom: 0;
 }
 
@@ -290,19 +313,11 @@ loadRememberedEmail();
 :deep(.aligned-form-item .el-form-item__label > div) {
   display: flex;
   align-items: center;
-  height: 44px;
+  height: 48px;
   white-space: nowrap;
 }
 
-:deep(.aligned-form-item .el-form-item__label-wrap) {
-  display: flex;
-  align-items: center;
-}
-
-.field-tip {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #6b7280;
-  line-height: 1.2;
+:deep(.el-form-item__error) {
+  color: #DC2626;
 }
 </style>
