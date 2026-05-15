@@ -686,26 +686,50 @@ async function startServer() {
   });
 
   // Create exam
-  app.post("/api/admin/exams", authenticateToken, isAdmin, async (req, res) => {
+// Create exam - 已修复版本
+app.post("/api/admin/exams", authenticateToken, isAdmin, async (req, res) => {
     const { title, description, start_time, end_time, duration_minutes, status } = req.body;
     const userId = (req as any).user.id;
 
     try {
-      if (!title || !start_time || !end_time) {
-        return res.status(400).json({ error: "Missing required exam fields" });
-      }
+        if (!title || !start_time || !end_time) {
+            return res.status(400).json({ error: "Missing required exam fields: title, start_time, end_time" });
+        }
 
-      const result = await query(
-        `INSERT INTO exams (title, description, start_time, end_time, duration_minutes, status, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [title, description, start_time, end_time, duration_minutes || 60, status || 'published', userId]
-      );
-      const id = isMySQL ? (result as any).insertId : (result as any).insertId;
-      res.json({ id });
+        const result = await query(
+            `INSERT INTO exams (title, description, start_time, end_time, duration_minutes, status, created_by) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                title, 
+                description || null, 
+                start_time, 
+                end_time, 
+                duration_minutes || 60, 
+                status || 'published', 
+                userId
+            ]
+        );
+
+        // 安全获取 insertId（兼容 MySQL / SQLite）
+        let id = null;
+        if (result && typeof result === 'object') {
+            id = (result as any).insertId || (result as any).lastInsertRowid;
+        }
+
+        if (!id) {
+            throw new Error("Failed to retrieve insert ID");
+        }
+
+        res.json({ id, message: "考试创建成功" });
     } catch (e: any) {
-      console.error('Create exam error:', e.message || e);
-      res.status(500).json({ error: "Failed to create exam" });
+        console.error('Create exam error:', e.message || e);
+        console.error('Error stack:', e.stack);
+        res.status(500).json({ 
+            error: "Failed to create exam", 
+            message: e.message || "数据库错误" 
+        });
     }
-  });
+});
 
   // Get exam questions (admin)
   app.get("/api/admin/exams/:id/questions", authenticateToken, isAdmin, async (req, res) => {

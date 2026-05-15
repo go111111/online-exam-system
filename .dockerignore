@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+dist
+build
+.turbo
+
+# Testing
+coverage
+.nyc_output
+
+# Environment files (use .env for production)
+.env.local
+.env.*.local
+
+# Documentation
+docs
+README.md
+QUICK_START.md
+START_HERE.md
+
+# Logs
+logs
+*.log
+
+# System
+Thumbs.db
+.AppleDouble
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Development
+.eslintcache
+.stylelintcache
+
+# Database files (let it be managed by volume)
+# exam.db
+
+# Upload files (managed by volume)
+# uploads/
