@@ -27,14 +27,28 @@ const handleAdd = async () => {
 };
 
 const handlePublishNotification = async () => {
+  console.log('=== 开始发布通知 ===');
+  console.log('通知数据:', newNotif.value);
   try {
+    console.log('正在发送请求到 /api/admin/notifications...');
     const result = await api.post('/api/admin/notifications', newNotif.value);
+    console.log('通知发布成功:', result);
     showNotification.value = false;
     newNotif.value = { title: '', content: '', type: 'announcement', target_role: 'all' };
     ElMessage.success(`通知发布成功，预计 ${result.recipientCount ?? 0} 人可收到。`);
   } catch (err: any) {
+    console.error('=== 通知发布失败 ===');
+    console.error('错误对象:', err);
+    console.error('错误消息:', err.message);
+    console.error('错误响应:', err.response);
     ElMessage.error(err.message || '通知发布失败，请检查接口服务。');
   }
+};
+
+const openNotificationModal = () => {
+  console.log('发布通知按钮被点击');
+  showNotification.value = true;
+  console.log('showNotification:', showNotification.value);
 };
 
 const toggleStatus = async (exam: any) => {
@@ -65,7 +79,7 @@ const deleteExam = async (id: number) => {
       </div>
       <div class="flex space-x-4">
         <button 
-          @click="showNotification = true"
+          @click="openNotificationModal"
           class="flex items-center px-4 py-2 bg-white border border-black-200 text-black-600 hover:border-gold-300 hover:text-gold-600 transition-all font-medium uppercase tracking-wider text-sm"
         >
           <Bell class="w-4 h-4 mr-2" />
