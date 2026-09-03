@@ -1,0 +1,5 @@
+﻿课程设计更新包
+上传 front 目录内容到宝塔前端目录，替换旧 index.html 和 assets。
+上传 backend/server.ts 到宝塔后端目录，替换旧 server.ts。
+不要覆盖 .env、exam.db、uploads、app.log。
+上传后在宝塔重启 Node 服务。

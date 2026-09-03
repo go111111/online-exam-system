@@ -220,7 +220,7 @@ loadRememberedEmail();
 
           <div class="pt-4">
             <el-button
-              @click="handleLogin"
+              native-type="submit"
               :loading="loading"
               class="w-full py-6 text-base font-bold login-btn"
             >
@@ -254,45 +254,45 @@ loadRememberedEmail();
 
 <style scoped>
 :deep(.login-input .el-input__wrapper) {
-  background-color: #FAFAFA;
-  border-color: #E5E5E5;
+  background-color: #1A1A1A;
+  border: 0 !important;
   transition: all 0.3s ease;
   min-height: 48px;
   box-shadow: none !important;
-  border-radius: 0;
+  border-radius: 4px;
 }
 
 :deep(.login-input .el-input__wrapper:hover) {
-  border-color: #D4AF37;
-  background-color: #FFFFFF;
+  border: 0 !important;
+  background-color: #1A1A1A;
 }
 
 :deep(.login-input.is-focus .el-input__wrapper) {
-  background-color: #FFFFFF;
-  border-color: #D4AF37;
-  box-shadow: 0 0 0 1px #D4AF37 !important;
+  background-color: #1A1A1A;
+  border: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(197, 160, 89, 0.75) !important;
 }
 
 :deep(.login-btn.el-button--primary) {
-  background-color: #111111;
-  border-color: #111111;
-  color: #FFFFFF;
+  background-color: #1E1E1E;
+  border-color: #444444;
+  color: #D1D1D1;
 }
 
 :deep(.login-btn.el-button--primary:hover) {
-  background-color: #D4AF37;
-  border-color: #D4AF37;
-  color: #111111;
+  background-color: #1E1E1E;
+  border-color: #C5A059;
+  color: #C5A059;
 }
 
 :deep(.el-checkbox__label) {
-  color: #666666;
+  color: #888888;
   font-size: 0.875rem;
 }
 
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #D4AF37;
-  border-color: #D4AF37;
+  background-color: #C5A059;
+  border-color: #C5A059;
 }
 
 :deep(.aligned-form-item .el-form-item__label) {

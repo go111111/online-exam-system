@@ -53,11 +53,11 @@ const getTargetLabel = (targetRole: string) => {
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto px-4 py-12">
-    <div class="flex flex-col lg:flex-row gap-8">
+  <div class="admin-shell max-w-7xl mx-auto px-4 py-12">
+    <div class="admin-layout flex flex-col lg:flex-row gap-8">
       <AdminSidebar />
 
-      <main class="flex-1 min-w-0">
+      <main class="admin-main flex-1 min-w-0">
         <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
           <div>
             <div class="w-16 h-0.5 bg-gold-300 mb-6"></div>

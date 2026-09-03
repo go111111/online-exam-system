@@ -248,33 +248,35 @@ const goToLogin = () => {
 
 <style scoped>
 :deep(.register-input .el-input__wrapper) {
-  background-color: #ffffff;
-  border-color: #e5e5e5;
+  background-color: #1A1A1A;
+  border: 0 !important;
   transition: all 0.3s ease;
   min-height: 44px;
+  border-radius: 4px;
+  box-shadow: none !important;
 }
 
 :deep(.register-input .el-input__wrapper:hover) {
-  border-color: #d4af37;
-  background-color: #ffffff;
+  border: 0 !important;
+  background-color: #1A1A1A;
 }
 
 :deep(.register-input.is-focus .el-input__wrapper) {
-  background-color: #ffffff;
-  border-color: #d4af37;
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+  background-color: #1A1A1A;
+  border: 0 !important;
+  box-shadow: 0 0 0 1px rgba(197, 160, 89, 0.35) !important;
 }
 
 :deep(.el-button--primary) {
-  background-color: #111111;
-  border: 1px solid #111111;
-  color: #ffffff;
+  background-color: #1E1E1E;
+  border: 1px solid #444444;
+  color: #D1D1D1;
 }
 
 :deep(.el-button--primary:hover) {
-  background-color: #d4af37;
-  border-color: #d4af37;
-  color: #111111;
+  background-color: #1E1E1E;
+  border-color: #C5A059;
+  color: #C5A059;
 }
 
 :deep(.aligned-form-item .el-form-item__label) {
@@ -307,7 +309,7 @@ const goToLogin = () => {
 .field-tip {
   margin-top: 8px;
   font-size: 12px;
-  color: #666666;
+  color: #888888;
   line-height: 1.2;
 }
 </style>

@@ -18,10 +18,39 @@ const imagePreview = ref<string>('');
 
 const questionTypes = [
   { value: 'choice', label: '单选题' },
+  { value: 'multiple', label: '多选题' },
+  { value: 'judge', label: '判断题' },
   { value: 'fill', label: '填空题' },
   { value: 'text', label: '简答题' },
+  { value: 'analysis', label: '分析题' },
+  { value: 'programming', label: '编程题' },
   { value: 'drawing', label: '绘图题' }
 ];
+const optionQuestionTypes = ['choice', 'multiple', 'judge'];
+const manualQuestionTypes = ['text', 'analysis', 'programming', 'drawing'];
+
+const getQuestionTypeLabel = (type: string) => {
+  const found = questionTypes.find((item) => item.value === type);
+  return found?.label || '题目';
+};
+
+const optionLabel = (index: number) => String.fromCharCode(65 + index);
+const isMultiChecked = (label: string) => String(newQ.value.answer || '').split(',').includes(label);
+const toggleMultiAnswer = (label: string, checked: boolean) => {
+  const parts = String(newQ.value.answer || '').split(',').filter(Boolean);
+  const next = checked ? [...new Set([...parts, label])] : parts.filter((item) => item !== label);
+  newQ.value.answer = next.sort().join(',');
+};
+const handleTypeChange = () => {
+  if (newQ.value.type === 'judge') {
+    newQ.value.options = ['正确', '错误'];
+    newQ.value.answer = newQ.value.answer || 'A';
+  } else if (newQ.value.type === 'choice' || newQ.value.type === 'multiple') {
+    if (!newQ.value.options.length) newQ.value.options = ['', '', '', ''];
+  } else {
+    newQ.value.options = [];
+  }
+};
 
 const fetchQuestions = async () => {
   questions.value = await api.get(`/api/admin/exams/${id}/questions`);
@@ -54,7 +83,7 @@ const handleAdd = async () => {
     return;
   }
 
-  if (newQ.value.type !== 'drawing' && !newQ.value.answer) {
+  if (!manualQuestionTypes.includes(newQ.value.type) && !newQ.value.answer) {
     alert('请输入标准答案');
     return;
   }
@@ -98,7 +127,7 @@ const handleEdit = async () => {
     return;
   }
 
-  if (newQ.value.type !== 'drawing' && !newQ.value.answer) {
+  if (!manualQuestionTypes.includes(newQ.value.type) && !newQ.value.answer) {
     alert('请输入标准答案');
     return;
   }
@@ -155,8 +184,8 @@ const handleDelete = async (qid: number) => {
     </div>
 
     <div v-if="showAdd || showEdit" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="bg-white w-full max-w-2xl shadow-2xl">
-        <div class="flex justify-between items-center p-8 border-b border-black-100">
+      <div v-dialog-drag="'[data-dialog-drag-handle]'" class="bg-white w-full max-w-2xl shadow-2xl max-h-[85vh] overflow-hidden">
+        <div data-dialog-drag-handle class="flex justify-between items-center p-8 border-b border-black-100 cursor-grab active:cursor-grabbing select-none">
           <h2 class="font-display text-2xl text-black-700">{{ showEdit ? '编辑题目' : '添加题目' }}</h2>
           <button 
             @click="() => { showAdd = false; showEdit = false; resetForm(); }"
@@ -166,17 +195,22 @@ const handleDelete = async (qid: number) => {
           </button>
         </div>
 
-        <div class="p-8 space-y-6">
+        <div class="p-8 space-y-6 max-h-[70vh] overflow-y-auto detail-scrollbar">
           <div>
             <label class="block text-sm font-semibold text-black-600 mb-2 uppercase tracking-wider">题目类型</label>
-            <select 
+            <el-select
               v-model="newQ.type"
-              class="w-full border border-black-200 bg-white px-4 py-3 focus:border-gold-300 focus:outline-none focus:ring-1 focus:ring-gold-300 transition-all duration-200"
+              class="w-full"
+              popper-class="dark-select-popper"
+              @change="handleTypeChange"
             >
-              <option v-for="qt in questionTypes" :key="qt.value" :value="qt.value">
-                {{ qt.label }}
-              </option>
-            </select>
+              <el-option
+                v-for="qt in questionTypes"
+                :key="qt.value"
+                :label="qt.label"
+                :value="qt.value"
+              />
+            </el-select>
           </div>
 
           <div>
@@ -230,22 +264,32 @@ const handleDelete = async (qid: number) => {
             <p class="text-xs text-black-400 mt-2">请输入1-100之间的整数</p>
           </div>
 
-          <div v-if="newQ.type === 'choice'">
+          <div v-if="optionQuestionTypes.includes(newQ.type)">
             <label class="block text-sm font-semibold text-black-600 mb-3 uppercase tracking-wider">选项</label>
             <div class="space-y-3">
               <div v-for="(opt, idx) in newQ.options" :key="idx" class="flex gap-2">
                 <span class="flex items-center px-3 py-2 bg-black-50 font-semibold text-black-600 min-w-12">
-                  {{ String.fromCharCode(65 + idx) }}
+                  {{ optionLabel(idx) }}
                 </span>
                 <input 
                   v-model="newQ.options[idx]"
                   placeholder="请输入选项内容"
+                  :disabled="newQ.type === 'judge'"
                   class="flex-1 border border-black-200 bg-white px-4 py-2 focus:border-gold-300 focus:outline-none focus:ring-1 focus:ring-gold-300 transition-all duration-200"
                 />
-                <label class="flex items-center gap-2 cursor-pointer">
+                <label v-if="newQ.type === 'multiple'" class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    :checked="isMultiChecked(optionLabel(idx))"
+                    class="w-4 h-4 accent-gold-300"
+                    @change="toggleMultiAnswer(optionLabel(idx), ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="text-sm text-black-600">正确</span>
+                </label>
+                <label v-else class="flex items-center gap-2 cursor-pointer">
                   <input 
                     type="radio" 
-                    :value="opt"
+                    :value="optionLabel(idx)"
                     v-model="newQ.answer"
                     class="w-4 h-4 accent-gold-300"
                   />
@@ -255,11 +299,13 @@ const handleDelete = async (qid: number) => {
             </div>
           </div>
 
-          <div v-else-if="newQ.type === 'fill' || newQ.type === 'text'">
-            <label class="block text-sm font-semibold text-black-600 mb-2 uppercase tracking-wider">标准答案</label>
+          <div v-else-if="newQ.type === 'fill' || newQ.type === 'text' || newQ.type === 'analysis' || newQ.type === 'programming'">
+            <label class="block text-sm font-semibold text-black-600 mb-2 uppercase tracking-wider">
+              {{ manualQuestionTypes.includes(newQ.type) ? '参考答案或评分要点' : '标准答案' }}
+            </label>
             <textarea 
               v-model="newQ.answer"
-              placeholder="请输入标准答案"
+              placeholder="请输入标准答案、评分要点或参考代码"
               class="w-full border border-black-200 bg-white px-4 py-3 focus:border-gold-300 focus:outline-none focus:ring-1 focus:ring-gold-300 transition-all duration-200 h-20 resize-none"
             />
           </div>
@@ -294,12 +340,12 @@ const handleDelete = async (qid: number) => {
           <div class="flex items-center gap-3">
             <span :class="cn(
               'text-xs font-bold uppercase tracking-widest px-3 py-1 border',
-              q.type === 'choice' ? 'bg-black-50 text-black-600 border-black-200' : 
+              optionQuestionTypes.includes(q.type) ? 'bg-black-50 text-black-600 border-black-200' : 
               q.type === 'fill' ? 'bg-gold-50 text-gold-700 border-gold-200' :
               q.type === 'drawing' ? 'bg-black-700 text-white border-black-700' :
               'bg-black-50 text-black-600 border-black-200'
             )">
-              {{ q.type === 'choice' ? '单选题' : q.type === 'fill' ? '填空题' : q.type === 'drawing' ? '绘图题' : '简答题' }}
+              {{ getQuestionTypeLabel(q.type) }}
             </span>
             <span class="text-xs text-gold-600 font-semibold uppercase tracking-wider">{{ q.score }} 分</span>
           </div>
@@ -323,15 +369,15 @@ const handleDelete = async (qid: number) => {
         <div v-if="q.image" class="mb-6">
           <img :src="`/api/uploads/${q.image}`" alt="题目图片" class="max-w-full h-auto border border-black-100" />
         </div>
-        <div v-if="q.type === 'choice'" class="grid grid-cols-2 gap-4">
+        <div v-if="optionQuestionTypes.includes(q.type)" class="grid grid-cols-2 gap-4">
           <div v-for="(opt, i) in q.options" :key="i" :class="cn(
             'p-4 border text-sm',
-            q.answer === opt ? 'bg-black-700 border-black-700 text-white' : 'bg-black-50 border-black-100 text-black-500'
+            String(q.answer || '').split(',').includes(optionLabel(i)) ? 'bg-black-700 border-black-700 text-white' : 'bg-black-50 border-black-100 text-black-500'
           )">
             {{ opt }}
           </div>
         </div>
-        <div v-if="q.type === 'fill' || q.type === 'text'" class="p-4 bg-black-50 border border-black-100">
+        <div v-if="q.type === 'fill' || q.type === 'text' || q.type === 'analysis' || q.type === 'programming'" class="p-4 bg-black-50 border border-black-100">
           <span class="text-xs font-bold text-black-600 uppercase block mb-2">参考答案</span>
           <p class="text-black-700">{{ q.answer || '暂无参考答案' }}</p>
         </div>

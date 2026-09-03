@@ -40,6 +40,7 @@ const tools = [
 const currentTool = ref<string>('pen');
 const drawingHistory = ref<string[]>([]);
 const currentDrawing = ref<any>(null);
+const canvasBackground = '#1E1E1E';
 
 // 线条预设颜色
 const presetColors = ['#000000', '#FF0000', '#00AA00', '#0000FF', '#FFAA00', '#FF00FF', '#00AAAA'];
@@ -53,7 +54,7 @@ const initCanvas = () => {
   ctx.value = canvas.getContext('2d');
   
   if (ctx.value) {
-    ctx.value.fillStyle = '#FFFFFF';
+    ctx.value.fillStyle = canvasBackground;
     ctx.value.fillRect(0, 0, canvas.width, canvas.height);
     
     // 加载之前的绘图
@@ -202,7 +203,7 @@ const redrawFromHistory = () => {
   
   const img = new Image();
   img.onload = () => {
-    ctx.value!.fillStyle = '#FFFFFF';
+    ctx.value!.fillStyle = canvasBackground;
     ctx.value!.fillRect(0, 0, canvasRef.value!.width, canvasRef.value!.height);
     ctx.value!.drawImage(img, 0, 0);
   };
@@ -217,7 +218,7 @@ const undo = () => {
   if (drawingHistory.value.length === 0) {
     // 清空画布
     if (ctx.value && canvasRef.value) {
-      ctx.value.fillStyle = '#FFFFFF';
+      ctx.value.fillStyle = canvasBackground;
       ctx.value.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
     }
   } else {
@@ -228,7 +229,7 @@ const undo = () => {
 const clear = () => {
   if (!ctx.value || !canvasRef.value) return;
   if (confirm('确定要清空画布吗？')) {
-    ctx.value.fillStyle = '#FFFFFF';
+    ctx.value.fillStyle = canvasBackground;
     ctx.value.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
     drawingHistory.value = [];
   }
@@ -382,7 +383,7 @@ onMounted(initCanvas);
     </div>
 
     <!-- Canvas -->
-    <div class="bg-black-50 p-4 overflow-auto" style="max-height: 700px;">
+    <div class="bg-black-50 p-4 overflow-auto detail-scrollbar" style="max-height: 700px;">
       <canvas 
         ref="canvasRef"
         :width="canvasWidth"
@@ -391,7 +392,7 @@ onMounted(initCanvas);
         @mousemove="draw"
         @mouseup="stopDrawing"
         @mouseleave="stopDrawing"
-        :class="['bg-white border border-black-200 cursor-crosshair', { 'opacity-50 cursor-not-allowed': disabled }]"
+        :class="['bg-white border border-black-200 cursor-crosshair canvas-surface', { 'opacity-50 cursor-not-allowed': disabled }]"
       ></canvas>
     </div>
   </div>
@@ -402,6 +403,7 @@ canvas {
   display: block;
   margin: auto;
   user-select: none;
+  background: #1E1E1E;
 }
 
 button:disabled {

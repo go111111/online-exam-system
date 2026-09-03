@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
-import { BarChart3, Bell, ChevronLeft, ClipboardList, FileCheck2 } from 'lucide-vue-next';
+import { BarChart3, Bell, BookOpenCheck, ChevronLeft, ClipboardList, FileCheck2, Users } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
 
 const route = useRoute();
@@ -9,6 +9,8 @@ const router = useRouter();
 
 const navItems = [
   { label: '考试管理', path: '/admin', icon: ClipboardList },
+  { label: '题库组卷', path: '/admin/question-bank', icon: BookOpenCheck },
+  { label: '人员管理', path: '/admin/people', icon: Users },
   { label: '考卷批改', path: '/admin/grading', icon: FileCheck2 },
   { label: '通知处理', path: '/admin/notifications', icon: Bell },
   { label: '查看成绩', path: '/admin/results', icon: BarChart3 }
@@ -34,7 +36,7 @@ const goBack = () => {
 </script>
 
 <template>
-  <aside class="w-full lg:w-64 shrink-0 border border-black-100 bg-white">
+  <aside class="admin-sidebar w-full lg:w-64 shrink-0 border border-black-100 bg-white">
     <div class="p-6 border-b border-black-100">
       <button
         v-if="showBack"

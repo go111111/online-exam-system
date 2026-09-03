@@ -1,0 +1,6 @@
+﻿课程设计更新包 JS 版
+front 目录内容覆盖宝塔前端目录。
+backend/server.ts 覆盖宝塔后端 server.ts。
+如果宝塔启动命令是 node server.js，则同时用 backend/server.js 覆盖宝塔后端 server.js。
+不要覆盖 .env、exam.db、uploads、node_modules、app.log。
+上传后重启 Node 服务。

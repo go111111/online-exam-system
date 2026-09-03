@@ -2,6 +2,53 @@
 
 > 专业的考试管理和答题平台，支持在线考试、自动评分、手动批改、通知管理等功能。
 
+## 后端架构
+
+后端保持 Express + TypeScript 单体架构，入口已从根目录 `server.ts` 拆分为 `server/` 分层目录。根目录 `server.ts` 仅作为兼容入口，开发脚本使用 `server/index.ts` 启动。
+
+```
+server/
+├── app.ts                 # 创建 Express、注册中间件和路由
+├── index.ts               # initDB 后启动 listen
+├── config/env.ts          # 统一读取环境变量
+├── db/
+│   ├── index.ts           # initDB、MySQL 优先、失败降级 SQLite
+│   ├── migrate.ts         # ensureColumn 和功能表结构迁移
+│   └── query.ts           # query/getOne 统一封装
+├── middleware/
+│   ├── auth.ts            # JWT 鉴权和角色校验
+│   └── upload.ts          # multer 上传配置，目录为根目录 uploads/
+├── routes/
+│   ├── auth.routes.ts
+│   ├── exam.routes.ts
+│   ├── admin.routes.ts
+│   └── notification.routes.ts
+├── services/
+│   ├── auth.service.ts
+│   ├── exam.service.ts
+│   ├── scoring.service.ts
+│   └── notification.service.ts
+└── utils/
+    ├── jwt.ts
+    └── password.ts
+```
+
+数据库策略：启动时先按 `.env` 中的 `MYSQL_*` 配置连接 MySQL，并执行 `SELECT 1` 验证；连接失败时自动使用项目根目录的 `exam.db` SQLite 文件。两种数据库共用 `query/getOne` 封装，迁移逻辑会补齐批改、绘图题、通知、专业班级等字段或表。
+
+本地启动：
+
+```bash
+npm install
+npm run dev
+```
+
+默认管理员仍会在数据库初始化后检查并创建：
+
+- 邮箱：`1776866817@qq.com`
+- 密码：`jungle123`
+
+当前已知限制：后端仍是单体应用；MySQL 使用单连接而非连接池；现有删除考试接口保持原行为，不主动级联清理历史题目和提交记录；服务层已经覆盖核心学生考试、评分、认证和通知流程，但部分管理端 CRUD 仍保留在 route 文件中。
+
 ## 功能特性
 
 ### 学生端
@@ -62,7 +109,8 @@ online-exam-system/
 │   ├── App.vue                   # 根组件
 │   ├── main.ts                   # 入口文件
 │   └── index.css                 # 全局样式
-── server.ts                     # 后端服务器
+├── server/                       # 后端分层代码
+├── server.ts                     # 兼容入口，实际导入 server/index.ts
 ├── uploads/                      # 文件上传目录
 ── .env                          # 环境变量配置
 ── package.json                  # 项目依赖
@@ -153,7 +201,7 @@ npm install -g pm2
 npm install --production
 
 # 3. 启动服务
-pm2 start "npx tsx server.ts" --name online-exam-system
+pm2 start "npx tsx server/index.ts" --name online-exam-system
 
 # 4. 保存配置
 pm2 save
@@ -276,7 +324,7 @@ docker-compose logs -f
 curl http://127.0.0.1:3000/api/health
 
 # 启动服务
-pm2 start "npx tsx server.ts" --name online-exam-system
+pm2 start "npx tsx server/index.ts" --name online-exam-system
 ```
 
 ### 2. 数据库连接失败

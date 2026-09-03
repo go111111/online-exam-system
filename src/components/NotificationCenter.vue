@@ -51,7 +51,7 @@ onMounted(() => {
 
     <div 
       v-if="showPanel"
-      class="absolute right-0 mt-2 w-96 bg-white border border-black-100 z-50 max-h-96 overflow-y-auto shadow-lg"
+      class="absolute right-0 mt-2 w-96 bg-white border border-black-100 z-50 max-h-96 overflow-y-auto detail-scrollbar shadow-lg"
     >
       <div class="sticky top-0 bg-white border-b border-black-100 p-4 flex justify-between items-center">
         <h3 class="font-display font-semibold text-black-700">通知</h3>
